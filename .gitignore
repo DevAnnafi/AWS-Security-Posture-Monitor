@@ -1,0 +1,40 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+override.tf
+.terraform.lock.hcl
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+
+# Secrets & local config
+.env
+.env.*
+credentials
+*.pem
+*.key
+
+# Scan artifacts
+findings.json
+findings/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
