@@ -189,5 +189,4 @@ This repository provisions **intentionally insecure AWS infrastructure**. Read b
 
 ## License
 
-MIT — see [LICENSE](LICENSE).#   A W S - S e c u r i t y - P o s t u r e - M o n i t o r  
- 
+MIT — see [LICENSE](LICENSE).#
