@@ -478,17 +478,3 @@ Score yourself honestly. This maps to how a technical interviewer will read it.
 without notes, that unit is incomplete regardless of whether the code runs.
 
 ---
-
-## What I will and won't do
-
-Per how we're working: you write the code. I'm available for architecture
-review, debugging a specific error, explaining an AWS API behavior, reviewing a
-design decision before you commit to it, and pushing back when a design will
-cause pain at unit 8.
-
-The exception we agreed on stands — dashboard boilerplate in Unit 10 is fair
-game to generate.
-
-If you ask me to write a check, I'll ask you what you've tried first. That's
-the deal, and it's the reason this ends up being worth something in an
-interview.
