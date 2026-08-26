@@ -2,7 +2,7 @@
 
 A cloud security posture management (CSPM) pipeline that detects AWS misconfigurations against the CIS AWS Foundations Benchmark, prioritizes findings by severity, and automatically remediates a defined subset in near real time.
 
-> **Status:** In active development. See [Roadmap](#roadmap) for what is implemented today.
+> **Status: in active development.** This README describes the target design. Only the parts marked **Built** below exist today; everything else is planned and labeled as such. See the [Roadmap](#roadmap) for current progress. Built so far: the Terraform vulnerable lab and the threat model / control selection.
 
 ---
 
@@ -14,75 +14,90 @@ Most cloud breaches trace back to configuration, not exotic exploits — a bucke
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Terraform: deliberately vulnerable AWS environment (lab)    │
-│  public S3 · wildcard IAM · open SG · unencrypted EBS/RDS    │
-└────────────────────────────┬─────────────────────────────────┘
-                             │
-          ┌──────────────────┴──────────────────┐
-          │                                     │
-   SCHEDULED SCAN                        EVENT-DRIVEN
-          │                                     │
-┌─────────▼──────────┐              ┌───────────▼────────────┐
-│  Scanner (Python + │              │  CloudTrail → Event-   │
-│  boto3)            │              │  Bridge rule           │
-│  · CIS-mapped      │              │  · fires on risky      │
-│    checks          │              │    config change       │
-│  · severity scoring│              └───────────┬────────────┘
-└─────────┬──────────┘                          │
-          │                            ┌────────▼────────┐
-          │                            │ Remediation     │
-          │                            │ Lambda          │
-          │                            │ · reverts change│
-          │                            └────────┬────────┘
-          │                                     │
-┌─────────▼─────────────────────────────────────▼────────────┐
-│  Findings store  →  FastAPI  →  Next.js dashboard          │
-│                  →  SNS / Slack alert                      │
-└────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph LAB["Lab environment — Terraform (built)"]
+        direction TB
+        L1["Public-read S3 bucket"]
+        L2["Unencrypted S3 bucket"]
+        L3["Open security group<br/>SSH 0.0.0.0/0 · lab VPC"]
+        L4["IAM policy *:* on inert role"]
+        L5["Unencrypted EBS volume"]
+        L6["Single-region CloudTrail"]
+    end
+
+    subgraph SCANNER["Scanner — Python + boto3 (in progress)"]
+        direction TB
+        S1["CIS-mapped checks<br/>6 controls, v7.0.0"]
+        S2["Severity scoring<br/>exposure · blast radius"]
+        S1 --> S2
+    end
+
+    subgraph FUTURE["Planned — Units 8–10"]
+        direction TB
+        F1["CloudTrail → EventBridge rule"]
+        F2["Remediation Lambda<br/>reverts risky change"]
+        F3["Findings store"]
+        F4["FastAPI service"]
+        F5["Next.js dashboard"]
+        F6["SNS / Slack alerts"]
+        F1 --> F2
+        F3 --> F4 --> F5
+    end
+
+    LAB -->|"read-only<br/>scanner role"| SCANNER
+    SCANNER -->|"findings"| F3
+    F2 -->|"notifies"| F6
+    LAB -.->|"config-change events"| F1
+
+    classDef planned stroke-dasharray:5 5,stroke:#888,color:#888;
+    class F1,F2,F3,F4,F5,F6 planned;
 ```
 
-<!-- TODO: replace this ASCII diagram with a rendered architecture image (draw.io / Excalidraw) before sharing the repo publicly. Recruiters skim images. -->
+*Solid boxes are implemented. Dashed boxes (remediation, findings store, API, dashboard, alerts) are planned for Units 8–10.*
 
 ---
 
 ## Features
 
-- **Framework-mapped detection.** Every check cites the CIS AWS Foundations Benchmark control it enforces, so findings are auditable rather than ad hoc.
-- **Severity scoring.** Findings are ranked (Critical / High / Medium / Low) based on exposure and blast radius, not just check type.
-- **Automated remediation.** A subset of finding types are reverted automatically via EventBridge → Lambda, closing the loop between detection and response.
-- **Reproducible vulnerable lab.** The insecure target environment is defined in Terraform, so results are reproducible by anyone cloning the repo.
-- **Tooling comparison.** Scanner output is benchmarked against Prowler and ScoutSuite to document coverage gaps honestly. See [`docs/tool-comparison.md`](docs/tool-comparison.md).
+Legend: **Built** = implemented and committed · **Planned** = designed, not yet implemented.
+
+- **Framework-mapped detection** *(Planned).* Every check cites the CIS AWS Foundations Benchmark control it enforces, so findings are auditable rather than ad hoc.
+- **Severity scoring** *(Planned).* Findings are ranked (Critical / High / Medium / Low) based on exposure and blast radius, not just check type.
+- **Automated remediation** *(Planned).* A subset of finding types are reverted automatically via EventBridge → Lambda, closing the loop between detection and response.
+- **Reproducible vulnerable lab** *(Built).* The insecure target environment is defined in Terraform, so results are reproducible by anyone cloning the repo.
+- **Tooling comparison** *(Planned).* Scanner output is benchmarked against Prowler and ScoutSuite to document coverage gaps honestly.
 
 ---
 
-## Checks implemented
+## Planned checks (v1)
 
-| CIS Control | Check | Severity | Auto-remediated |
+> **None of these run yet.** This is the v1 detection set, selected and justified in [`docs/architecture.md`](docs/architecture.md). Control numbers are verified against the CIS AWS Foundations Benchmark **v7.0.0**. The scanner interface that will execute these is under construction.
+
+| CIS Control | Check | Planned severity | Auto-remediation |
 |---|---|---|---|
-| 2.1.1 | S3 bucket server-side encryption disabled | High | Yes |
-| 2.1.5 | S3 bucket publicly accessible | Critical | Yes |
-| 5.2 | Security group allows `0.0.0.0/0` on port 22 | Critical | Yes |
-| 1.16 | IAM policy with `Action: "*"` on `Resource: "*"` | High | No |
-| 3.1 | CloudTrail not enabled in all regions | High | No |
-| 2.2.1 | EBS volume unencrypted | Medium | No |
-
-<!-- TODO: keep this table in sync as you add checks. Do not list a check here until it actually runs. -->
+| 3.1.4 | S3 bucket not configured with Block Public Access | Critical | Planned |
+| 6.3 | Security group allows `0.0.0.0/0` to remote admin ports (SSH) | Critical | Planned |
+| 2.14 | IAM policy allowing full `*:*` admin privileges is attached | High | No |
+| 4.1 | CloudTrail not enabled in all regions | High | No |
+| 2.10 | MFA not enabled for IAM users with a console password | High | No |
+| 2.12 | Access keys not rotated within 90 days | Medium | No |
 
 ---
 
 ## Tech stack
 
+Layers marked *(planned)* are not yet implemented.
+
 | Layer | Technology |
 |---|---|
-| Infrastructure (target lab) | Terraform, AWS |
-| Detection | Python 3.11, boto3 |
-| Event pipeline | CloudTrail, EventBridge, Lambda |
-| Alerting | SNS, Slack webhook |
-| API | FastAPI |
-| Dashboard | Next.js, TypeScript, Tailwind CSS |
-| CI | GitHub Actions (lint, `terraform validate`, unit tests) |
+| Infrastructure (target lab) | Terraform, AWS — **built** |
+| Detection | Python 3.11, boto3 — *in progress* |
+| Event pipeline | CloudTrail, EventBridge, Lambda — *planned* |
+| Alerting | SNS, Slack webhook — *planned* |
+| API | FastAPI — *planned* |
+| Dashboard | Next.js, TypeScript, Tailwind CSS — *planned* |
+| CI | GitHub Actions (lint, `terraform validate`, unit tests) — *planned* |
 
 ---
 
@@ -93,9 +108,9 @@ Most cloud breaches trace back to configuration, not exotic exploits — a bucke
 - An AWS account you are willing to deploy deliberately insecure resources into — see [Safety](#safety)
 - AWS CLI configured with credentials (`aws configure`)
 - Terraform >= 1.6
-- Python >= 3.11
+- Python >= 3.11 *(for the scanner, once implemented)*
 
-### 1. Deploy the vulnerable lab
+### 1. Deploy the vulnerable lab — **available now**
 
 ```bash
 cd terraform/
@@ -104,24 +119,27 @@ terraform plan
 terraform apply
 ```
 
-### 2. Run a scan
+### 2. Run a scan — *planned (Units 3–6)*
 
 ```bash
+# Not yet implemented.
 cd scanner/
 pip install -r requirements.txt
 python -m scanner --region us-east-1 --output findings.json
 ```
 
-### 3. Deploy the remediation pipeline
+### 3. Deploy the remediation pipeline — *planned (Unit 8)*
 
 ```bash
+# Not yet implemented.
 cd terraform/remediation/
 terraform apply
 ```
 
-### 4. Run the dashboard (optional)
+### 4. Run the dashboard — *planned (Unit 10)*
 
 ```bash
+# Not yet implemented.
 cd api/ && uvicorn main:app --reload
 cd dashboard/ && npm install && npm run dev
 ```
@@ -129,6 +147,7 @@ cd dashboard/ && npm install && npm run dev
 ### 5. Tear everything down
 
 ```bash
+cd terraform/
 terraform destroy
 ```
 
@@ -138,26 +157,26 @@ terraform destroy
 
 ## Sample output
 
-```
-<!-- TODO: paste real scanner output here once the first checks pass. -->
-```
+*Will be added once the first checks run (Unit 4).*
 
 ---
 
 ## Repository structure
 
+> Directories marked *(planned)* do not exist yet; they describe the intended layout.
+
 ```
 .
-├── terraform/          # Vulnerable lab environment + remediation infra
-│   └── remediation/    # EventBridge rules, Lambda, SNS topic
-├── scanner/            # Python detection engine
-│   ├── checks/         # One module per CIS control
-│   └── scoring.py      # Severity model
-├── lambda/             # Remediation handlers
-├── api/                # FastAPI findings service
-├── dashboard/          # Next.js findings UI
-├── docs/               # Architecture notes, tool comparison
-└── .github/workflows/  # CI
+├── terraform/          # Vulnerable lab environment (built)
+│   └── remediation/    # EventBridge rules, Lambda, SNS topic (planned)
+├── scanner/            # Python detection engine (in progress)
+│   ├── checks/         # One module per CIS control (planned)
+│   └── scoring.py      # Severity model (planned)
+├── lambda/             # Remediation handlers (planned)
+├── api/                # FastAPI findings service (planned)
+├── dashboard/          # Next.js findings UI (planned)
+├── docs/               # Architecture notes, threat model (built)
+└── .github/workflows/  # CI (planned)
 ```
 
 ---
@@ -176,17 +195,22 @@ This repository provisions **intentionally insecure AWS infrastructure**. Read b
 
 ## Roadmap
 
-- [ ] Core scanner with the six checks above
-- [ ] Severity scoring model
-- [ ] Auto-remediation for S3 public access and open SSH
-- [ ] Prowler / ScoutSuite coverage comparison
-- [ ] FastAPI findings API
-- [ ] Next.js dashboard
-- [ ] Multi-account support via AWS Organizations
-- [ ] Findings export to Security Hub (ASFF format)
+- [x] Dedicated sandbox account, IAM setup, budget guardrails (Unit 0)
+- [x] Threat model and CIS control selection (Unit 1)
+- [x] Reproducible vulnerable lab in Terraform (Unit 2)
+- [ ] Finding model and check registry (Unit 3)
+- [ ] First checks: S3 public, S3 encryption, open SSH (Unit 4)
+- [ ] Severity scoring model (Unit 5)
+- [ ] Full six-check set + multi-region scanning (Unit 6)
+- [ ] Test suite and CI (Unit 7)
+- [ ] Auto-remediation for S3 public access and open SSH (Unit 8)
+- [ ] Prowler / ScoutSuite coverage comparison (Unit 9)
+- [ ] FastAPI findings API + Next.js dashboard (Unit 10)
+- [ ] Documentation and portfolio packaging (Unit 11)
+- [ ] *Stretch:* multi-account via AWS Organizations, Security Hub (ASFF) export
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).#
+MIT — see [LICENSE](LICENSE).
