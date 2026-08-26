@@ -22,12 +22,15 @@ class Finding:
     title: str
     severity: Severity
     resource_id: str
+    resource_sub_id: str | None
     region: str | None
     remediable: bool
     evidence: dict[str, Any]
     detected_at: datetime
     finding_id: str
     account_id: str
+
+
 
 
 
