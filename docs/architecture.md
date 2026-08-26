@@ -23,6 +23,8 @@ The following controls are from the **CIS Amazon Web Services Foundations Benchm
 | 4.1 | Ensure CloudTrail is enabled in all regions | Level 1 | Manual |
 | 6.3 | Ensure no security groups allow ingress from 0.0.0.0/0 to remote server administration ports | Level 1 | Automated |
 
+These controls were selected because they provide concrete configuration checks across identity, authorization, storage exposure, logging, and network exposure. CIS defines Level 1 as the baseline security profile intended to reduce common attack surface without requiring the more restrictive assumptions of Level 2.
+
 ## Scope Boundary
 
 The Security Posture Monitor is intentionally limited to **cloud configuration posture**. It evaluates whether AWS resources are configured in ways that create recognizable security weaknesses; it does not attempt to become a complete runtime security, data governance, or multi-account security platform.
@@ -38,6 +40,57 @@ These exclusions keep the project focused on detecting **configuration-level sec
 
 Severity is based primarily on **internet exposure, the directness of the path to sensitive data or account takeover, and whether an attacker must first obtain a foothold**. A directly exposed administrative interface or a configuration that turns one compromised credential into full account control is therefore more severe than a weakness that requires an existing foothold or additional conditions. Because the tool cannot determine the sensitivity of the underlying data, severity assumes worst-case contents when evaluating a configuration that could expose data.
 
+---
+
+## Design Decisions
+
+### 1. Checks return a `CheckResult` with an explicit status, not a bare list of findings
+
+A check has three possible outcomes, not two: it found violations, it evaluated the resources and found them compliant, or it could not evaluate them at all. Returning a bare `list[Finding]` collapses the second and third cases into the same empty list.
+
+That collapse is a security failure, not just an API wart. If the scanner lacks `s3:GetBucketPolicy` and the exception is swallowed, the scan reports zero findings and the operator concludes the environment is clean. A scanner that produces false confidence is more dangerous than one that crashes, because the operator acts on the result.
+
+Checks therefore return a `CheckResult` carrying a status enum alongside any findings. A caller distinguishes compliant from unevaluable by inspecting `status`. "Unknown" is deliberately *not* a `Severity` member — an unevaluable check produces no `Finding` at all, because a finding asserts that something is wrong, and this case asserts only that we do not know.
+
+**Cost:** every caller must handle three branches rather than truth-testing a list.
+
+### 2. Check metadata lives on the check class
+
+Each check is a subclass of an abstract `BaseCheck` and declares its CIS control ID, title, severity, remediability, and data dependencies as class attributes.
+
+The alternative was decorated functions with metadata passed as decorator arguments. Class attributes were chosen because the registry can be introspected without executing any check — which means the README control table, the coverage comparison in `docs/tool-comparison.md`, and the API's control filter can all be generated from the registry rather than maintained by hand. Metadata that is duplicated by hand drifts; metadata with one source does not.
+
+**Cost:** more ceremony per check than a bare decorated function, and a check that needs no state still has to be a class.
+
+### 3. Collect-then-evaluate, not a memoized session
+
+Collection and evaluation are separate phases. A collector gathers an inventory snapshot from AWS once; checks are pure functions over that snapshot and never call boto3 themselves.
+
+The alternative was handing each check a memoized AWS session that caches calls. Both solve the immediate problem — three S3 checks should not each call `list_buckets` — but collect-then-evaluate buys three things the memoized session does not:
+
+- **Testability.** A check under test receives a dictionary. The test suite needs no AWS credentials, no `moto`, and no stubbing. This is what makes the Unit 7 requirement — a credential-free suite in CI — cheap rather than laborious.
+- **Point-in-time consistency.** Every check evaluates the same snapshot, so a resource changing mid-scan cannot produce a self-contradictory report.
+- **Replayability.** A serialized snapshot can be re-scanned offline, which makes a finding reproducible without re-querying the account.
+
+**Cost — two things given up:**
+
+- **Laziness.** The collector gathers its whole inventory regardless of which checks will run, so a single-check scan pays for data it does not use.
+- **Localization.** A check's data requirements no longer live in the check. Adding a check that needs data the collector does not yet gather means editing two files instead of one, and the snapshot schema becomes a contract between collector and checks that must be maintained deliberately.
+
+The snapshot schema must also represent *why* data is absent. A bucket with no policy and a bucket whose policy could not be read are not the same state, so per-resource collection status is part of the schema rather than an afterthought. `BaseCheck` declares which snapshot sections it requires; the runner inspects collection status for those sections and returns `UNEVALUABLE` without invoking the check. This keeps the check pure while still surfacing the third outcome from decision 1.
+
+### 4. Findings carry a deterministic ID with a sub-resource discriminator
+
+`Finding.finding_id` is a SHA-256 digest computed in `__post_init__` from account ID, region, control ID, resource ID, and sub-resource ID, joined with `|`. It is not a random UUID and does not include the timestamp or the severity.
+
+Determinism is required by suppression. If a user suppresses a finding on Monday, Tuesday's scan of the same unchanged misconfiguration must produce the same identifier, or the suppression silently fails to match and the finding reappears. Timestamp and severity are excluded for the same reason: the first changes every scan, and the second is recomputed by the scoring model, so including either would orphan existing suppressions.
+
+`resource_sub_id` exists because account + region + control + resource is not always unique. A single security group with three rules opening `0.0.0.0/0` on three different administration ports is one resource violating one control three times. Without a discriminator those three findings hash identically, collapse into one, and suppressing one would suppress its siblings. Checks that have no sub-resource pass `None`, which is normalized to an empty string before hashing so that `None` and a literal `"None"` cannot collide.
+
+**Cost:** the hash inputs and their order are a permanent contract. Changing either invalidates every stored suppression, so the field list is versioned rather than edited in place.
+
+---
+
 ## Defense Questions
 
 ### Why CIS instead of NIST 800-53 or AWS Foundational Security Best Practices?
@@ -51,17 +104,3 @@ If NIST 800-53 had been selected, the project would cite NIST control identifier
 **6.3 — Ensure no security groups allow ingress from 0.0.0.0/0 to remote server administration ports** is the most likely to produce an intentional finding. An organization may deliberately expose an administration port in a controlled design, such as a bastion host, provided another security mechanism controls or protects the access path. The CIS guidance itself recognizes this operational consideration.
 
 **2.12** can also produce legitimate findings for service accounts or legacy integrations that require long-lived access keys, but that does not eliminate the underlying credential-lifetime risk. The control specifically requires access keys to be rotated every 90 days or less.
-
-## Design Decisions
-
-Design decisions for the check interface and finding storage will be added in later units. Recommended that all access keys be rotated regularly and at least every 90 days. | Level 1 |
-| 2.14 | It is recommended and considered standard security advice to grant least privilege, granting only the permissions required to perform a task | Level 1 | 
-| 3.1.4 | Whether to block public access to all or some buckets is an organizational decision that should be based on data sensitivity, least privilege, and use case. | Level 1 |
-| 4.1 | Ensure CloudTrail is enabled in all regions | Level 1 | 
-| 6.3 | Ensure no security groups allow ingress from 0.0.0.0/0 to remote server administration ports | Level 1 |
-
-These controls were selected because they provide concrete configuration checks for identity, authorization, storage exposure, logging, and network exposure. CIS defines Level 1 as the baseline security profile intended to reduce common attack surface without requiring the more restrictive assumptions of Level 2.
-
-
-
-
