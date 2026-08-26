@@ -4,10 +4,10 @@ TODO: define Finding (cis_control, title, severity, resource_arn, region,
       remediable, evidence) and Severity. Every check returns a list of these.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 class Severity(IntEnum):
     # four members
@@ -26,9 +26,9 @@ class Finding:
     region: str | None
     remediable: bool
     evidence: dict[str, Any]
-    detected_at: datetime
     finding_id: str
     account_id: str
+    detected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 
