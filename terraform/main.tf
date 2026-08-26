@@ -135,7 +135,7 @@ resource "aws_ebs_volume" "unencrypted_test" {
 }
 
 resource "aws_s3_bucket" "cloudtrail_logs" {
-  bucket = "${var.name_prefix}-cloudtrail-logs-test"
+  bucket        = "${var.name_prefix}-cloudtrail-logs-test"
   force_destroy = true
 
   tags = {
