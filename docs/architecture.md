@@ -54,7 +54,7 @@ If NIST 800-53 had been selected, the project would cite NIST control identifier
 
 ## Design Decisions
 
-Design decisions for the check interface and finding storage will be added in later units. recommended that all access keys be rotated regularly and at least every 90 days. | Level 1 |
+Design decisions for the check interface and finding storage will be added in later units. Recommended that all access keys be rotated regularly and at least every 90 days. | Level 1 |
 | 2.14 | It is recommended and considered standard security advice to grant least privilege, granting only the permissions required to perform a task | Level 1 | 
 | 3.1.4 | Whether to block public access to all or some buckets is an organizational decision that should be based on data sensitivity, least privilege, and use case. | Level 1 |
 | 4.1 | Ensure CloudTrail is enabled in all regions | Level 1 | 
