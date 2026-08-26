@@ -1,13 +1,8 @@
-"""Core data structures.
-
-TODO: define Finding (cis_control, title, severity, resource_arn, region,
-      remediable, evidence) and Severity. Every check returns a list of these.
-"""
-
 from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any
 from datetime import datetime, timezone
+import hashlib
 
 class Severity(IntEnum):
     # four members
@@ -26,9 +21,16 @@ class Finding:
     region: str | None
     remediable: bool
     evidence: dict[str, Any]
-    finding_id: str
     account_id: str
     detected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    finding_id: str = field(init=False)
+
+    def __post_init__(self):
+        joined = "|".join([self.account_id, self.region or "", self.control_id, self.resource_id, self.resource_sub_id or ""])
+        encode = joined.encode()
+        self.finding_id = hashlib.sha256(encode).hexdigest()
+
+
 
 
 
