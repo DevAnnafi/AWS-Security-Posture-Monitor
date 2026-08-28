@@ -23,6 +23,8 @@ class CheckResult:
     control_id: str
     error: str | None
 
+CHECK_REGISTRY: dict[str, type[BaseCheck]] = {}
+
 class BaseCheck(ABC):
     control_id: str
     title: str
@@ -33,4 +35,8 @@ class BaseCheck(ABC):
     @abstractmethod
     def evaluate(self, snapshot) -> CheckResult:
         raise NotImplementedError
+
+    def __init_subclass__(cls, **kwargs):
+      super().__init_subclass__(**kwargs)
+      CHECK_REGISTRY[cls.control_id] = cls
 
