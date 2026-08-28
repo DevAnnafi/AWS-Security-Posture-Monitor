@@ -7,7 +7,8 @@ TODO: decide how checks announce themselves - decorator-based registry vs.
 
 from enum import Enum
 from dataclasses import dataclass
-from scanner.models import Finding
+from scanner.models import Finding, Severity
+from abc import ABC, abstractmethod
 
 class CheckStatus(Enum):
     # Three members
@@ -21,4 +22,15 @@ class CheckResult:
     findings: list[Finding]
     control_id: str
     error: str | None
+
+class BaseCheck(ABC):
+    control_id: str
+    title: str
+    severity: Severity
+    remediable: bool
+    requires: list[str]
+
+    @abstractmethod
+    def evaluate(self, snapshot) -> CheckResult:
+        raise NotImplementedError
 
