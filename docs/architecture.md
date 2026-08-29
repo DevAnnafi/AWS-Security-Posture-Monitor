@@ -77,7 +77,9 @@ The alternative was handing each check a memoized AWS session that caches calls.
 - **Laziness.** The collector gathers its whole inventory regardless of which checks will run, so a single-check scan pays for data it does not use.
 - **Localization.** A check's data requirements no longer live in the check. Adding a check that needs data the collector does not yet gather means editing two files instead of one, and the snapshot schema becomes a contract between collector and checks that must be maintained deliberately.
 
-The snapshot schema must also represent *why* data is absent. A bucket with no policy and a bucket whose policy could not be read are not the same state, so per-resource collection status is part of the schema rather than an afterthought. `BaseCheck` declares which snapshot sections it requires; the runner inspects collection status for those sections and returns `UNEVALUABLE` without invoking the check. This keeps the check pure while still surfacing the third outcome from decision 1.
+`BaseCheck` declares which snapshot sections it requires; the runner inspects collection status for those sections before invoking the check. This keeps the check pure while still surfacing the third outcome from decision 1. How absent data is represented within a section is covered in decision 5.
+
+A caveat on point-in-time consistency: the snapshot is consistent but not atomic. Collection takes time, so a bucket read at second 2 and a security group read at second 40 reflect different moments, and a snapshot may describe a state the account never actually occupied. Atomicity is not achievable through the AWS APIs, so the snapshot records its own collection window and a scan is understood as approximately consistent over that window rather than as an instant.
 
 ### 4. Findings carry a deterministic ID with a sub-resource discriminator
 
@@ -88,6 +90,35 @@ Determinism is required by suppression. If a user suppresses a finding on Monday
 `resource_sub_id` exists because account + region + control + resource is not always unique. A single security group with three rules opening `0.0.0.0/0` on three different administration ports is one resource violating one control three times. Without a discriminator those three findings hash identically, collapse into one, and suppressing one would suppress its siblings. Checks that have no sub-resource pass `None`, which is normalized to an empty string before hashing so that `None` and a literal `"None"` cannot collide.
 
 **Cost:** the hash inputs and their order are a permanent contract. Changing either invalidates every stored suppression, so the field list is versioned rather than edited in place.
+
+### 5. Every collected value carries its own retrieval status
+
+Each value in the snapshot is wrapped in a dict holding a `status` that records whether the read succeeded, alongside the value itself. The value is not stored bare.
+
+The motivating case is S3. A bucket with no policy attached and a bucket whose policy returned `AccessDenied` both have `document: None`. They are distinguished only by `status`:
+
+```
+bucket-b   policy: {"status": "ok",            "document": None}
+bucket-c   policy: {"status": "access_denied", "document": None}
+```
+
+Without the wrapper the two are identical, and a check reading `policy` would see `None`, conclude "no policy, therefore not public," and report a potentially exposed bucket as clean. That is the silent false negative described in decision 1, arriving through the data layer rather than through exception handling.
+
+Status is per value rather than per section, because failures are partial. `list_buckets` can succeed while `get_bucket_policy` fails on one bucket out of fifty. A section-level status alone would either discard forty-nine valid results or mask one unreadable resource.
+
+The status vocabulary belongs to the collector and describes retrieval outcomes (`ok`, `access_denied`, and later throttling and not-found). It is deliberately distinct from `CheckStatus`, which describes a check's verdict. The collector reports what it managed to read; the check reports what that means.
+
+**Cost:** every read inside a check is two levels deep, and the collector cannot store raw API responses unmodified.
+
+### 6. Open — partial results
+
+A check may evaluate some resources successfully and others not at all. In the S3 case, buckets A and B are fully readable while bucket C returned `AccessDenied` on its policy, so the check can reach a verdict for two of three buckets.
+
+`CheckResult` currently carries one status for the whole check, which cannot express this. Unresolved: does a partially-evaluated check return `VIOLATIONS` and leave the unevaluated resources unreported, return `CANT_EVALUATE` and discard two valid findings, or does status become per-resource?
+
+Also outstanding: ACL and account-level Block Public Access are not yet represented in the bucket entries. Both need the same per-value status wrapper as `policy`, since both reads can fail independently. Account-level BPA additionally sits outside the `s3_buckets` section, so a check requiring it must declare more than one section in `requires`.
+
+A question deferred from decision 2: `BaseCheck.remediable` records whether a remediation handler exists, but not where it lives. The candidates are a `remediate()` method on the check class, or a separate handler registry keyed by control ID. The execution contexts differ sharply — checks are pure functions over a snapshot, while remediation runs inside Lambda with write credentials in response to an EventBridge event — which argues for separation, but the decision is not yet made.
 
 ---
 
@@ -104,3 +135,15 @@ If NIST 800-53 had been selected, the project would cite NIST control identifier
 **6.3 — Ensure no security groups allow ingress from 0.0.0.0/0 to remote server administration ports** is the most likely to produce an intentional finding. An organization may deliberately expose an administration port in a controlled design, such as a bastion host, provided another security mechanism controls or protects the access path. The CIS guidance itself recognizes this operational consideration.
 
 **2.12** can also produce legitimate findings for service accounts or legacy integrations that require long-lived access keys, but that does not eliminate the underlying credential-lifetime risk. The control specifically requires access keys to be rotated every 90 days or less.
+
+### Why is a scanner that silently reports no findings worse than one that crashes?
+
+A crash is loud and self-correcting: the traceback is seen, the missing permission is granted, the scan is re-run. A silent zero is worse than no scan at all. An unavailable scanner leaves the operator appropriately uncertain, while a clean report actively creates false confidence — it is filed, reported upward, and displaces the scrutiny that would otherwise have occurred. The misconfiguration remains and nobody is looking for it. The distinction is between a tool that failed and a tool that lied.
+
+### How is "the setting is off" distinguished from "I could not determine the setting"?
+
+Through decision 5 at the data layer and decision 1 at the result layer. A violation produces a `Finding` inside a `CheckResult` with status `VIOLATIONS`. A compliant resource produces no finding and status `EVALUATED`. An unreadable resource produces no `Finding` at all — status `CANT_EVALUATE` with a populated `error`.
+
+The `Finding` model deliberately does not express the third state. A finding asserts that something is wrong; "could not determine" asserts only absence of knowledge. Placing both in the same container would require every downstream consumer — dashboard, API, remediation trigger — to remember to filter one out, and a consumer that forgot would act on an unconfirmed finding.
+
+Under collect-then-evaluate the check never observes the failure directly. The `AccessDenied` is caught by the collector, recorded as per-value collection status in the snapshot, and interpreted by the runner or the check reading that status. The check remains a pure function and needs no knowledge of AWS failure modes.
