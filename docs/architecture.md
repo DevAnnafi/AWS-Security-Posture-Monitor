@@ -110,15 +110,25 @@ The status vocabulary belongs to the collector and describes retrieval outcomes 
 
 **Cost:** every read inside a check is two levels deep, and the collector cannot store raw API responses unmodified.
 
-### 6. Open — partial results
+### 6. Partial results
 
 A check may evaluate some resources successfully and others not at all. In the S3 case, buckets A and B are fully readable while bucket C returned `AccessDenied` on its policy, so the check can reach a verdict for two of three buckets.
 
-`CheckResult` currently carries one status for the whole check, which cannot express this. Unresolved: does a partially-evaluated check return `VIOLATIONS` and leave the unevaluated resources unreported, return `CANT_EVALUATE` and discard two valid findings, or does status become per-resource?
+**Decision:** Add `PARTIAL` as a `CheckResult` status and add an `unevaluated` field identifying resources that could not be evaluated. `PARTIAL` is used when at least one resource was evaluated and at least one was unreachable. If no resources can be evaluated at all, the status is `CANT_EVALUATE`.
 
-Also outstanding: ACL and account-level Block Public Access are not yet represented in the bucket entries. Both need the same per-value status wrapper as `policy`, since both reads can fail independently. Account-level BPA additionally sits outside the `s3_buckets` section, so a check requiring it must declare more than one section in `requires`.
+The rejected alternative is to keep the overall status as `VIOLATIONS` and put unreachable resources only in a separate field. That would require every consumer to remember to inspect the field; a consumer that forgets renders a complete-looking report of an incomplete scan. `PARTIAL` makes incompleteness part of the result's primary status rather than optional metadata.
+
+**Rule:** Reachability and correctness are orthogonal. A resource being unreachable does not imply a violation, and a `PARTIAL` result must preserve the findings from resources that were successfully evaluated.
+
+**Cost:** Consumers must distinguish `PARTIAL` from both clean and violating results, and operators need to inspect `findings` to determine whether the evaluated resources contained violations.
+
+### Open questions
+
+ACL and account-level Block Public Access are not yet represented in the bucket entries. Both need the same per-value status wrapper as `policy`, since both reads can fail independently. Account-level BPA additionally sits outside the `s3_buckets` section, so a check requiring it must declare more than one section in `requires`.
 
 A question deferred from decision 2: `BaseCheck.remediable` records whether a remediation handler exists, but not where it lives. The candidates are a `remediate()` method on the check class, or a separate handler registry keyed by control ID. The execution contexts differ sharply — checks are pure functions over a snapshot, while remediation runs inside Lambda with write credentials in response to an EventBridge event — which argues for separation, but the decision is not yet made.
+
+
 
 ---
 

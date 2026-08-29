@@ -15,6 +15,7 @@ class CheckStatus(Enum):
     VIOLATIONS = "violations"
     EVALUATED = "evaluated"
     CANT_EVALUATE = "not_evaluated"
+    PARTIAL="partial"
 
 @dataclass
 class CheckResult:
