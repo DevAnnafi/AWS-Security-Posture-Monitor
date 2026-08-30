@@ -38,6 +38,16 @@ class Finding:
         finding_dict["severity"] = self.severity.name
         return finding_dict
 
+    @classmethod
+    def from_dict(cls, finding_dict):
+        finding_dict["detected_at"] = datetime.fromisoformat(finding_dict["detected_at"])
+        finding_dict["severity"] = Severity[finding_dict["severity"]]
+
+        finding_dict.pop("finding_id")
+
+        return cls(**finding_dict)
+
+
 
 
 
