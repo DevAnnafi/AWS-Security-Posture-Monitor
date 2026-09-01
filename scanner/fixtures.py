@@ -117,8 +117,8 @@ FIXTURE = {
                 "document": {
                     "BlockPublicAcls": True,
                     "IgnorePublicAcls": True,
-                    "BlockPublicPolicy": True,
-                    "RestrictPublicBuckets": True,
+                    "BlockPublicPolicy": False,
+                    "RestrictPublicBuckets": False,
                 },
             },
             "ownership_controls": {
