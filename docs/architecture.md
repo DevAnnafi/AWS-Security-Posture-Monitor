@@ -122,6 +122,12 @@ The rejected alternative is to keep the overall status as `VIOLATIONS` and put u
 
 **Cost:** Consumers must distinguish `PARTIAL` from both clean and violating results, and operators need to inspect `findings` to determine whether the evaluated resources contained violations.
 
+### 7. S3 Public Access Finding Design
+
+S3 public-access findings use resource_sub_id to distinguish multiple findings produced for the same bucket and control. The sub-resource identifies the specific access mechanism, such as acl:AllUsers or acl:AuthenticatedUsers.
+
+S3PublicAccess.severity represents the check's default severity rather than the severity of every finding. Severity is explicitly supplied when each Finding is constructed because different public-access mechanisms have different risk levels. AllUsers is classified as CRITICAL, while AuthenticatedUsers is classified as HIGH.
+
 ### Open questions
 
 ACL and account-level Block Public Access are not yet represented in the bucket entries. Both need the same per-value status wrapper as `policy`, since both reads can fail independently. Account-level BPA additionally sits outside the `s3_buckets` section, so a check requiring it must declare more than one section in `requires`.
