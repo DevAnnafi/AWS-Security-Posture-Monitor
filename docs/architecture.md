@@ -134,6 +134,14 @@ ACL and account-level Block Public Access are not yet represented in the bucket 
 
 A question deferred from decision 2: `BaseCheck.remediable` records whether a remediation handler exists, but not where it lives. The candidates are a `remediate()` method on the check class, or a separate handler registry keyed by control ID. The execution contexts differ sharply — checks are pure functions over a snapshot, while remediation runs inside Lambda with write credentials in response to an EventBridge event — which argues for separation, but the decision is not yet made.
 
+### 8. Single-Scope Snapshots and Deferred Multi-Region Support
+
+Decision: The snapshot currently represents a single collection scope. Multi-region collection will require a future change to the section wrapper so regional collection status can be represented explicitly.
+
+Reasoning: A section-level status is correct for the current single-scope collector because the API operation is the unit of collection. However, one status cannot represent independent success/failure across multiple regions. We will not prematurely introduce a regional wrapper before multi-region collection exists.
+
+Cost: When multi-region collection is introduced, the snapshot section wrapper will need to change, and consumers of that section may require updates. This is an intentional known migration cost.
+
 
 
 ---

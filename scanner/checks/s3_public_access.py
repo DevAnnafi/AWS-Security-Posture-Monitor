@@ -90,7 +90,7 @@ class S3PublicAccess(BaseCheck):
     requires =  ["s3_buckets", "account_bpa"]
 
     def evaluate(self, snapshot):
-        buckets = snapshot["s3_buckets"]
+        buckets = snapshot["s3_buckets"]["document"]
         account_bpa = snapshot["account_bpa"]
         unevaluated_list = []
         findings_list = []
@@ -121,7 +121,7 @@ class S3PublicAccess(BaseCheck):
                     control_id=self.control_id,
                     title=self.title,
                     severity=acl_public.severity,
-                    resource_id=f"arn:aws:s3:::{bucket["name"]}",
+                    resource_id=f"arn:aws:s3:::{bucket['name']}",
                     resource_sub_id="acl",
                     region=bucket["region"],
                     remediable=self.remediable,
