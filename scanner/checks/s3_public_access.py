@@ -1,5 +1,5 @@
 from scanner.registry import BaseCheck, CheckResult, CheckStatus
-from scanner.models import Severity
+from scanner.models import Severity, Finding
 from enum import Enum
 from typing import NamedTuple, Optional
 
@@ -90,5 +90,68 @@ class S3PublicAccess(BaseCheck):
     requires =  ["s3_buckets", "account_bpa"]
 
     def evaluate(self, snapshot):
-        return CheckResult(CheckStatus.EVALUATED, [], self.control_id, None)
+        buckets = snapshot["s3_buckets"]
+        account_bpa = snapshot["account_bpa"]
+        unevaluated_list = []
+        findings_list = []
+        account_id = snapshot["account_id"]
+        for bucket in buckets:
+           resource_id = f"arn:aws:s3:::{bucket['name']}"
+           try:
+                acl_public = _is_public_via_acl(bucket, account_bpa)
+                policy_public = _is_public_via_policy(bucket, account_bpa)
+           except NotReadableError as e:
+               unevaluated_list.append({"resource_id": f"arn:aws:s3:::{bucket['name']}", "reason": e.reason})
+               continue
+          
+           if policy_public is True:
+                findings_list.append(Finding(
+                    control_id=self.control_id,
+                    title=self.title,
+                    severity=self.severity,
+                    resource_id=resource_id,
+                    resource_sub_id="policy",
+                    region=bucket["region"],
+                    remediable=self.remediable,
+                    evidence=bucket["policy"]["document"],
+                    account_id=account_id
+                ))
+           if acl_public != PublicExposure.NONE:
+               findings_list.append(Finding(
+                    control_id=self.control_id,
+                    title=self.title,
+                    severity=acl_public.severity,
+                    resource_id=f"arn:aws:s3:::{bucket["name"]}",
+                    resource_sub_id="acl",
+                    region=bucket["region"],
+                    remediable=self.remediable,
+                    evidence=bucket["acl"]["document"],
+                    account_id=account_id
+                ))
+
+        if unevaluated_list:
+            status = CheckStatus.PARTIAL
+        elif findings_list:
+            status = CheckStatus.VIOLATIONS
+        else:
+            status = CheckStatus.EVALUATED
+
+        return CheckResult(
+            status=status,
+            findings=findings_list,
+            control_id=self.control_id,
+            error=None,
+            unevaluated=unevaluated_list,
+        )
+
+               
+
+
+
+               
+
+               
+
+
+
     

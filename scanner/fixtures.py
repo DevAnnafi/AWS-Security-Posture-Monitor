@@ -1,5 +1,6 @@
 FIXTURE = {
     "collection_window": None,
+    "account_id":"157182991517",
     "account_bpa": {
         "status": "ok",
         "document": {
@@ -138,6 +139,7 @@ FIXTURE = {
 }
 
 ALLUSERS_FIXTURE = {
+    "account_id":"157182991517",
     "account_bpa": {
         "status": "ok",
         "document": {
@@ -197,6 +199,7 @@ ALLUSERS_FIXTURE = {
 }
 
 AUTHENTICATED_FIXTURE = {
+    "account_id":"157182991517",
     "account_bpa": {
         "status": "ok",
         "document": {

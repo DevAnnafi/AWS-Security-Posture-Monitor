@@ -6,7 +6,7 @@ TODO: decide how checks announce themselves - decorator-based registry vs.
 """
 
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from scanner.models import Finding, Severity
 from abc import ABC, abstractmethod
 
@@ -23,6 +23,7 @@ class CheckResult:
     findings: list[Finding]
     control_id: str
     error: str | None
+    unevaluated: list[dict[str, str]] = field(default_factory=list)
 
 CHECK_REGISTRY: dict[str, type[BaseCheck]] = {}
 
