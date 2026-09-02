@@ -56,21 +56,37 @@ def _is_public_via_acl(bucket, account_bpa):
         raise NotReadableError("acl", bucket["acl"]["status"])
     if bucket["acl"]["document"] is None:
         return PublicExposure.NONE
-    
+
     all_users_granted = False
+    authenticated_users_granted = False
 
     for grant in bucket["acl"]["document"]["Grants"]:
         if grant["Grantee"]["Type"] != "Group":
             continue
-        if grant["Grantee"]["URI"] == ALL_USERS_URI:
+
+        if (
+            grant["Grantee"]["URI"] == ALL_USERS_URI and grant["Permission"] in ("READ", "WRITE", "WRITE_ACP", "FULL_CONTROL")
+        ):
             all_users_granted = True
-        if grant["Permission"] in ("READ", "WRITE", "READ_WRITE"):
-            all_users_granted = True
+
+        if (
+            grant["Grantee"]["URI"] == AUTHENTICATED_USERS_URI and grant["Permission"] in ("READ", "WRITE", "WRITE_ACP", "FULL_CONTROL")
+        ):
+            authenticated_users_granted = True
 
     if all_users_granted:
         return PublicExposure.ALL_USERS
 
+    if authenticated_users_granted:
+        return PublicExposure.AUTHENTICATED_USERS
+
     return PublicExposure.NONE
+    
+   
+
+    
+    
+
 
 
 class S3PublicAccess(BaseCheck):
