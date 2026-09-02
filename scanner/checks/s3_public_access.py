@@ -11,6 +11,12 @@ from typing import NamedTuple, Optional
 
 ALL_USERS_URI = "http://acs.amazonaws.com/groups/global/AllUsers"
 AUTHENTICATED_USERS_URI = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers"
+PERMISSION_ACL_CONTROLS = (
+    "READ",
+    "WRITE", 
+    "WRITE_ACP", 
+    "FULL_CONTROL"
+)
 
 class NotReadableError(Exception):
     def __init__(self, value_name, reason):
@@ -65,12 +71,12 @@ def _is_public_via_acl(bucket, account_bpa):
             continue
 
         if (
-            grant["Grantee"]["URI"] == ALL_USERS_URI and grant["Permission"] in ("READ", "WRITE", "WRITE_ACP", "FULL_CONTROL")
+            grant["Grantee"]["URI"] == ALL_USERS_URI and grant["Permission"] in PERMISSION_ACL_CONTROLS
         ):
             all_users_granted = True
 
         if (
-            grant["Grantee"]["URI"] == AUTHENTICATED_USERS_URI and grant["Permission"] in ("READ", "WRITE", "WRITE_ACP", "FULL_CONTROL")
+            grant["Grantee"]["URI"] == AUTHENTICATED_USERS_URI and grant["Permission"] in PERMISSION_ACL_CONTROLS
         ):
             authenticated_users_granted = True
 

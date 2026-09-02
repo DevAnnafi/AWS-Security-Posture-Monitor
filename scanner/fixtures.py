@@ -137,7 +137,66 @@ FIXTURE = {
     ],
 }
 
-SECOND_FIXTURE = {
+ALLUSERS_FIXTURE = {
+    "account_bpa": {
+        "status": "ok",
+        "document": {
+            "BlockPublicAcls": False,
+            "IgnorePublicAcls": False,
+            "BlockPublicPolicy": False,
+            "RestrictPublicBuckets": False,
+        },
+    },
+    "s3_buckets": [
+        {
+            "name": "acl-public-bucket",
+            "region": "us-east-1",
+            "bucket_bpa": {
+                "status": "ok",
+                "document": {
+                    "BlockPublicAcls": False,
+                    "IgnorePublicAcls": False,
+                    "BlockPublicPolicy": False,
+                    "RestrictPublicBuckets": False,
+                },
+            },
+            "ownership_controls": {
+                "status": "ok",
+                "document": {
+                    "Rules": [
+                        {
+                            "ObjectOwnership": "BucketOwnerPreferred"
+                        }
+                    ]
+                },
+            },
+            "policy": {
+                "status": "ok",
+                "document": None
+            },
+            "acl": {
+                "status": "ok",
+                "document": {
+                    "Owner": {
+                        "DisplayName": "bucket-admin",
+                        "ID": "bucket_2"
+                    },
+                    "Grants": [
+                        {
+                            "Grantee": {
+                                "Type": "Group",
+                                "URI": "http://acs.amazonaws.com/groups/global/AllUsers"
+                            },
+                            "Permission": "FULL_CONTROL",
+                        }
+                    ],
+                },
+            },
+        }
+    ],
+}
+
+AUTHENTICATED_FIXTURE = {
     "account_bpa": {
         "status": "ok",
         "document": {
@@ -185,7 +244,7 @@ SECOND_FIXTURE = {
                         {
                             "Grantee": {
                                 "Type": "Group",
-                                "URI": "http://acs.amazonaws.com/groups/global/AllUsers"
+                                "URI": "http://acs.amazonaws.com/groups/global/AuthenticatedUsers"
                             },
                             "Permission": "FULL_CONTROL",
                         }
