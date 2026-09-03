@@ -7,7 +7,7 @@
 """
 
 from scanner.checks.s3_public_access import S3PublicAccess
-from scanner.fixtures import FIXTURE
+from scanner.fixtures import FIXTURE, CLEAN_ENVIRONMENT_FIXTURE, S3_NOTREADABLE_FIXTURE
 from scanner.registry import CheckStatus
 
 def test_s3_public_access():
@@ -22,3 +22,21 @@ def test_s3_public_access():
 
     assert len(result.unevaluated) == 1
     assert result.unevaluated[0]["resource_id"] == "arn:aws:s3:::bucket-c"
+
+def test_s3_clean_environment():
+    check = S3PublicAccess()
+
+    result = check.evaluate(CLEAN_ENVIRONMENT_FIXTURE)
+
+    assert result.status == CheckStatus.EVALUATED
+
+    assert len(result.findings) == 0
+
+    assert len(result.unevaluated) == 0
+
+def test_evaluate_s3_notreadable_fixture():
+    check = S3PublicAccess()
+
+    result = check.evaluate(S3_NOTREADABLE_FIXTURE)
+
+    assert result.status == CheckStatus.CANT_EVALUATE
