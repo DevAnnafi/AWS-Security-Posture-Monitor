@@ -90,6 +90,14 @@ class S3PublicAccess(BaseCheck):
     requires =  ["s3_buckets", "account_bpa"]
 
     def evaluate(self, snapshot):
+        if snapshot["s3_buckets"]["status"] != "ok":
+            return CheckResult(
+                status=CheckStatus.CANT_EVALUATE,
+                findings=[],
+                control_id=self.control_id,
+                error=snapshot["s3_buckets"]["status"],
+                unevaluated=[],
+            )
         buckets = snapshot["s3_buckets"]["document"]
         account_bpa = snapshot["account_bpa"]
         unevaluated_list = []

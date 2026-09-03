@@ -370,3 +370,23 @@ ACCESS_DENIED_FIXTURE = {
         "document": None,
     },
 }
+
+S3_NOTREADABLE_FIXTURE = {
+    "collection_window": None,
+    "account_id": "157182991517",
+
+    "account_bpa": {
+        "status": "ok",
+        "document": {
+            "BlockPublicAcls": True,
+            "IgnorePublicAcls": True,
+            "BlockPublicPolicy": False,
+            "RestrictPublicBuckets": False,
+        },
+    },
+
+    "s3_buckets": {
+        "status": "access_denied",
+        "document": None           
+    },
+}
