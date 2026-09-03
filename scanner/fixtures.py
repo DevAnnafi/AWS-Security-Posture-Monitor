@@ -287,7 +287,7 @@ AUTHENTICATED_FIXTURE = {
 
 
 SECURITY_GROUP_FIXTURE = {
-    "account_id": "123456789012",
+    "account_id": "157182991517",
 
     "account_bpa": {
         "status": "ok",

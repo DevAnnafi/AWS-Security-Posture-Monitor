@@ -1,9 +1,9 @@
 """TODO: unit tests. Mock AWS with moto or botocore.stub.Stubber so the
 suite runs in CI without live credentials.
 """
+
 from scanner.models import Finding, Severity
 import json
-
 
 def test_finding_round_trips_through_json():
     f = Finding(
@@ -19,3 +19,4 @@ def test_finding_round_trips_through_json():
     )
     back = Finding.from_dict(json.loads(json.dumps(f.to_dict())))
     assert back == f
+
