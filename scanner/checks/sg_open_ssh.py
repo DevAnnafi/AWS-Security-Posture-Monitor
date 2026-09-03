@@ -38,6 +38,14 @@ class SecurityGroupAdminPorts(BaseCheck):
     requires =  ["security_groups"]
 
     def evaluate(self, snapshot):
+        if snapshot["security_groups"]["status"] != "ok":
+            return CheckResult(
+                status=CheckStatus.CANT_EVALUATE,
+                findings=[],
+                control_id=self.control_id,
+                error=snapshot["security_groups"]["status"],
+                unevaluated=[],
+            )
         security_groups = snapshot["security_groups"]["document"]
         findings_list = []
         account_id = snapshot["account_id"]

@@ -346,3 +346,27 @@ SECURITY_GROUP_FIXTURE = {
         ],
     },
 }
+
+ACCESS_DENIED_FIXTURE = {
+    "account_id": "157182991517",
+
+    "account_bpa": {
+        "status": "ok",
+        "document": {
+            "BlockPublicAcls": False,
+            "IgnorePublicAcls": False,
+            "BlockPublicPolicy": False,
+            "RestrictPublicBuckets": False,
+        },
+    },
+
+    "s3_buckets": {
+        "status": "ok",
+        "document": [],
+    },
+
+    "security_groups": {
+        "status": "access_denied",
+        "document": None,
+    },
+}
