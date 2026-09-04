@@ -2,6 +2,13 @@ from scanner.models import Severity
 
 READ_ONLY_LIST = ["s3:GetObject", "s3:ListBucket"]
 
+CAPABILITY_TO_SEVERITY = {
+    1 : Severity.MEDIUM,
+    2 : Severity.HIGH,
+    3 : Severity.CRITICAL
+}
+
+
 def capability_level(statement):
     action = statement["Action"]
     if isinstance(action, str):
@@ -10,9 +17,4 @@ def capability_level(statement):
         return 1
     return 2
 
-CAPABILITY_TO_SEVERITY = {
-    1 : Severity.MEDIUM,
-    2 : Severity.HIGH,
-    3 : Severity.CRITICAL
-}
 

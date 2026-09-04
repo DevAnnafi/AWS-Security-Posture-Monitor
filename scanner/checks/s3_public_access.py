@@ -21,17 +21,17 @@ class NotReadableError(Exception):
 
 def _is_public_via_policy(bucket, account_bpa):
     if account_bpa["document"]["BlockPublicPolicy"] or account_bpa["document"]["RestrictPublicBuckets"]:
-        return False
+        return False, None
     if bucket["bucket_bpa"]["document"]["BlockPublicPolicy"] or bucket["bucket_bpa"]["document"]["RestrictPublicBuckets"]:
-        return False
+        return False, None
     if bucket["policy"]["status"] != "ok":
         raise NotReadableError("policy", bucket["policy"]["status"])
     if bucket["policy"]["document"] is None:
-        return False
+        return False, None
     for statement in bucket["policy"]["document"]["Statement"]:
         if statement["Effect"] == "Allow" and statement["Principal"] == "*":
-            return True
-    return False
+            return True, statement
+    return False, None
 
 class PublicExposure(Enum):
     NONE = (False, None)
@@ -107,7 +107,7 @@ class S3PublicAccess(BaseCheck):
            resource_id = f"arn:aws:s3:::{bucket['name']}"
            try:
                 acl_public = _is_public_via_acl(bucket, account_bpa)
-                policy_public = _is_public_via_policy(bucket, account_bpa)
+                policy_public, statement = _is_public_via_policy(bucket, account_bpa)
            except NotReadableError as e:
                unevaluated_list.append({"resource_id": f"arn:aws:s3:::{bucket['name']}", "reason": e.reason})
                continue
