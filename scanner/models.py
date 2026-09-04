@@ -4,7 +4,6 @@ from typing import Any
 from datetime import datetime, timezone
 import hashlib
 
-
 class Severity(IntEnum):
     # four members
     CRITICAL = 4
