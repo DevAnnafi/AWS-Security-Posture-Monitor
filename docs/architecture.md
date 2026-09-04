@@ -38,7 +38,7 @@ These exclusions keep the project focused on detecting **configuration-level sec
 
 ## Severity Philosophy
 
-Severity is based primarily on **internet exposure, the directness of the path to sensitive data or account takeover, and whether an attacker must first obtain a foothold**. A directly exposed administrative interface or a configuration that turns one compromised credential into full account control is therefore more severe than a weakness that requires an existing foothold or additional conditions. Because the tool cannot determine the sensitivity of the underlying data, severity assumes worst-case contents when evaluating a configuration that could expose data.
+Severity is based primarily on **internet exposure, the directness of the path to sensitive data or account takeover, and whether an attacker must first obtain a foothold**. A directly exposed administrative interface or a configuration that turns one compromised credential into full account control is therefore more severe than a weakness that requires an existing foothold or additional conditions. Because the tool cannot determine the sensitivity of the underlying data, severity assumes worst-case contents when evaluating a configuration that could expose data. Deciision 9 supersedes this.
 
 ---
 
@@ -124,15 +124,10 @@ The rejected alternative is to keep the overall status as `VIOLATIONS` and put u
 
 ### 7. S3 Public Access Finding Design
 
-S3 public-access findings use resource_sub_id to distinguish multiple findings produced for the same bucket and control. The sub-resource identifies the specific access mechanism, such as acl:AllUsers or acl:AuthenticatedUsers.
+S3 public-access findings use resource_sub_id to distinguish multiple findings produced for the same bucket and control. The sub-resource identifies the specific access mechanism, such as acl or policy.
 
-S3PublicAccess.severity represents the check's default severity rather than the severity of every finding. Severity is explicitly supplied when each Finding is constructed because different public-access mechanisms have different risk levels. AllUsers is classified as CRITICAL, while AuthenticatedUsers is classified as HIGH.
+Severity is determined by the granted permission represented by the finding, not by the access mechanism or group name. The previous PublicExposure severity model was removed; S3PublicAccess no longer carries per-mechanism severities. Each Finding receives its severity from the granted permission when it is constructed.
 
-### Open questions
-
-ACL and account-level Block Public Access are not yet represented in the bucket entries. Both need the same per-value status wrapper as `policy`, since both reads can fail independently. Account-level BPA additionally sits outside the `s3_buckets` section, so a check requiring it must declare more than one section in `requires`.
-
-A question deferred from decision 2: `BaseCheck.remediable` records whether a remediation handler exists, but not where it lives. The candidates are a `remediate()` method on the check class, or a separate handler registry keyed by control ID. The execution contexts differ sharply — checks are pure functions over a snapshot, while remediation runs inside Lambda with write credentials in response to an EventBridge event — which argues for separation, but the decision is not yet made.
 
 ### 8. Single-Scope Snapshots and Deferred Multi-Region Support
 
@@ -142,7 +137,25 @@ Reasoning: A section-level status is correct for the current single-scope collec
 
 Cost: When multi-region collection is introduced, the snapshot section wrapper will need to change, and consumers of that section may require updates. This is an intentional known migration cost.
 
+### 9. The impact of the granted access dictates each finding’s severity.
 
+Decision: Severity uses one factor with three levels, mapped directly to Severity. The level is determined separately for each finding based on what the granted access permits an attacker to do. For policy findings, the level comes from the granted policy actions; for ACL findings, from the ACL permission; and for security-group findings, from the exposed port.
+
+Reasoning: The model originally considered multiple factors, including exposure and blast radius, then separated capability before returning to a single factor. Reachability did not meaningfully discriminate among the current findings: three of the four findings represent unauthenticated access from the internet. A factor that is effectively constant across the findings does not provide useful separation, so severity is based on capability — what the access actually allows an attacker to do.
+
+Rejected alternative: The rejected approach was to enumerate known write or otherwise dangerous actions and treat unknown actions as safe. This was rejected because the scanner cannot reliably determine whether an unfamiliar action is dangerous. Defaulting unknown permissions to safe would create false negatives. Instead, the scanner uses a safe-list inversion: it explicitly enumerates read-only actions that are provably safe and treats every other action as level 2. This follows the same unknown-assume-worse principle used elsewhere in the scanner.
+
+Cost: The safe-list is deliberately conservative. An action such as s3:GetBucketLocation is harmless but currently scores as level 2 until it is explicitly added to the safe list. This creates some false severity elevation in exchange for avoiding the more dangerous assumption that an unknown permission is safe.
+
+Why LOW is unused: Every finding currently emitted by this scanner represents an unintended public exposure, so none belongs at LOW. LOW is reserved for findings that are non-compliant but not themselves exploitable, such as access-key age or missing MFA; those findings arrive through controls 2.10 and 2.12 rather than the public-exposure checks.
+
+Limitation: The severity levels are relative to the findings the scanner detects today, rather than an absolute ranking of all possible security findings. The current three-level model is calibrated around public-exposure findings and their granted capability. As additional checks are added, particularly IAM-specific checks, new findings may introduce capabilities that require the severity ladder or its ordering to be revisited. The model should therefore be treated as an explicit policy for the current detection surface, not as a permanently fixed severity hierarchy.
+
+### Open questions
+
+ACL and account-level Block Public Access are already represented in the bucket entries. They use the same per-value status wrapper as policy, so each read can fail independently. Account-level BPA is also represented in the collected snapshot rather than being absent from the S3 bucket data model.
+
+A question deferred from decision 2: BaseCheck.remediable records whether a remediation handler exists, but not where it lives. The candidates are a remediate() method on the check class, or a separate handler registry keyed by control ID. The execution contexts differ sharply — checks are pure functions over a snapshot, while remediation runs inside Lambda with write credentials in response to an EventBridge event — which argues for separation, but the decision is not yet made.
 
 ---
 
