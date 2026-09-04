@@ -38,7 +38,7 @@ These exclusions keep the project focused on detecting **configuration-level sec
 
 ## Severity Philosophy
 
-Severity is based primarily on **internet exposure, the directness of the path to sensitive data or account takeover, and whether an attacker must first obtain a foothold**. A directly exposed administrative interface or a configuration that turns one compromised credential into full account control is therefore more severe than a weakness that requires an existing foothold or additional conditions. Because the tool cannot determine the sensitivity of the underlying data, severity assumes worst-case contents when evaluating a configuration that could expose data. Deciision 9 supersedes this.
+Severity is determined solely by the impact of the granted access: what an attacker can do with the exposedthe exposed configuration. The scanner uses three severity levels based on that capability, with the level assigned independently for each finding. See Decision 9 for the rationale and detailed methodology.
 
 ---
 
