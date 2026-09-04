@@ -7,13 +7,16 @@
 """
 
 from scanner.checks.s3_public_access import S3PublicAccess
-from scanner.fixtures import FIXTURE, CLEAN_ENVIRONMENT_FIXTURE, S3_NOTREADABLE_FIXTURE
+from scanner.fixtures import FIXTURE, CLEAN_ENVIRONMENT_FIXTURE, S3_NOTREADABLE_FIXTURE, S3_EVERYTHING_FIXTURE
 from scanner.registry import CheckStatus
+from scanner.models import Severity
 
 def test_s3_public_access():
     check = S3PublicAccess()
 
     result = check.evaluate(FIXTURE)
+
+    
 
     assert result.status == CheckStatus.PARTIAL
 
@@ -40,3 +43,15 @@ def test_evaluate_s3_notreadable_fixture():
     result = check.evaluate(S3_NOTREADABLE_FIXTURE)
 
     assert result.status == CheckStatus.CANT_EVALUATE
+
+def test_policy_severity_read_only():
+    check = S3PublicAccess()
+    result = check.evaluate(FIXTURE)
+
+    assert result.findings[0].severity == Severity.MEDIUM
+
+def test_policy_severity_everything():
+    check = S3PublicAccess()
+    result = check.evaluate(S3_EVERYTHING_FIXTURE)
+
+    assert result.findings[0].severity == Severity.HIGH

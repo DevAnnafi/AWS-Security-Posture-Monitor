@@ -414,3 +414,83 @@ CLEAN_ENVIRONMENT_FIXTURE = {
         "document": []
         },
 }
+
+S3_EVERYTHING_FIXTURE = {
+    "collection_window": None,
+    "account_id": "157182991517",
+
+    "account_bpa": {
+        "status": "ok",
+        "document": {
+            "BlockPublicAcls": True,
+            "IgnorePublicAcls": True,
+            "BlockPublicPolicy": False,
+            "RestrictPublicBuckets": False,
+        },
+    },
+
+    "s3_buckets": {
+        "status": "ok",
+        "document": [
+            {
+                "name": "bucket-a",
+                "region": "us-east-1",
+                "bucket_bpa": {
+                    "status": "ok",
+                    "document": {
+                        "BlockPublicAcls": True,
+                        "IgnorePublicAcls": True,
+                        "BlockPublicPolicy": False,
+                        "RestrictPublicBuckets": False,
+                    },
+                },
+                "ownership_controls": {
+                    "status": "ok",
+                    "document": {
+                        "Rules": [
+                            {"ObjectOwnership": "BucketOwnerPreferred"}
+                        ]
+                    },
+                },
+                "policy": {
+                    "status": "ok",
+                    "document": {
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Principal": "*",
+                                "Action": "s3:*",
+                                "Resource": "arn:aws:s3:::bucket-a/*",
+                            }
+                        ]
+                    },
+                },
+                "acl": {
+                    "status": "ok",
+                    "document": {
+                        "Owner": {
+                            "ID": "bucket_1",
+                            "DisplayName": "bucket-owner-admin",
+                        },
+                        "Grants": [
+                            {
+                                "Grantee": {
+                                    "ID": "owner-user-id-12345",
+                                    "Type": "CanonicalUser",
+                                },
+                                "Permission": "FULL_CONTROL",
+                            },
+                            {
+                                "Grantee": {
+                                    "ID": "external-user-id-67890",
+                                    "Type": "CanonicalUser",
+                                },
+                                "Permission": "READ",
+                            },
+                        ],
+                    },
+                },
+            },
+        ],
+    },
+}

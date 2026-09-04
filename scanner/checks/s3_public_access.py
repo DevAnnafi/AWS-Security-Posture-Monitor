@@ -1,5 +1,6 @@
 from scanner.registry import BaseCheck, CheckResult, CheckStatus
 from scanner.models import Severity, Finding
+from scanner.scoring import capability_level, CAPABILITY_TO_SEVERITY
 from enum import Enum
 from typing import NamedTuple, Optional
 
@@ -116,7 +117,7 @@ class S3PublicAccess(BaseCheck):
                 findings_list.append(Finding(
                     control_id=self.control_id,
                     title=self.title,
-                    severity=self.severity,
+                    severity=CAPABILITY_TO_SEVERITY[capability_level(statement)],
                     resource_id=resource_id,
                     resource_sub_id="policy",
                     region=bucket["region"],

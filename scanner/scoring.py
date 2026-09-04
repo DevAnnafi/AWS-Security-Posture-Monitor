@@ -8,7 +8,6 @@ CAPABILITY_TO_SEVERITY = {
     3 : Severity.CRITICAL
 }
 
-
 def capability_level(statement):
     action = statement["Action"]
     if isinstance(action, str):
