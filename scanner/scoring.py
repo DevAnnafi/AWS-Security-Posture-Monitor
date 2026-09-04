@@ -4,7 +4,7 @@ def capability_level(statement):
     action = statement["Action"]
     if isinstance(action, str):
         action = [action]    
-    if action in READ_ONLY_LIST:
+    if all(a in READ_ONLY_LIST for a in action):
         return 1
     return 2
 
