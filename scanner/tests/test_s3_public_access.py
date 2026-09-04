@@ -16,8 +16,6 @@ def test_s3_public_access():
 
     result = check.evaluate(FIXTURE)
 
-    
-
     assert result.status == CheckStatus.PARTIAL
 
     assert len(result.findings) == 1
