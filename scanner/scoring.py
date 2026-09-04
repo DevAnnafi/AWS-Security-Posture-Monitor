@@ -16,4 +16,13 @@ def capability_level(statement):
         return 1
     return 2
 
+def acl_capability_level(grant):
+    acl = grant["Permission"]
+    if acl == "READ":
+        return 1
+    return 2
+    
+
+
+
 

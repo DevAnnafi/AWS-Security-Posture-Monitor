@@ -1,6 +1,6 @@
 from scanner.registry import BaseCheck, CheckResult, CheckStatus
 from scanner.models import Severity, Finding
-from scanner.scoring import capability_level, CAPABILITY_TO_SEVERITY
+from scanner.scoring import capability_level, CAPABILITY_TO_SEVERITY, acl_capability_level
 from enum import Enum
 from typing import NamedTuple, Optional
 
@@ -35,31 +35,27 @@ def _is_public_via_policy(bucket, account_bpa):
     return False, None
 
 class PublicExposure(Enum):
-    NONE = (False, None)
-    AUTHENTICATED_USERS = (True, Severity.HIGH)
-    ALL_USERS = (True, Severity.CRITICAL)
-
-    def __init__(self, is_public: bool, severity: Optional[str]):
-        self.is_public = is_public
-        self.severity = severity
+    NONE = "none"
+    AUTHENTICATED_USERS = "authenticated_users"
+    ALL_USERS = "all_users"
 
 
 def _is_public_via_acl(bucket, account_bpa):
     if account_bpa["document"]["BlockPublicAcls"] or account_bpa["document"]["IgnorePublicAcls"]:
-        return PublicExposure.NONE
+        return PublicExposure.NONE, None
     if bucket["bucket_bpa"]["document"]["BlockPublicAcls"] or bucket["bucket_bpa"]["document"]["IgnorePublicAcls"]:
-        return PublicExposure.NONE
+        return PublicExposure.NONE, None
     if bucket["ownership_controls"]["status"] != "ok":
         raise NotReadableError("ownership_controls", bucket["ownership_controls"]["status"])
     if bucket["ownership_controls"]["document"]["Rules"][0]["ObjectOwnership"] == "BucketOwnerEnforced":
-        return PublicExposure.NONE
+        return PublicExposure.NONE, None
     if bucket["acl"]["status"] != "ok":
         raise NotReadableError("acl", bucket["acl"]["status"])
     if bucket["acl"]["document"] is None:
-        return PublicExposure.NONE
+        return PublicExposure.NONE, None
 
-    all_users_granted = False
-    authenticated_users_granted = False
+    all_users_grant = None
+    authenticated_users_grant = None
 
     for grant in bucket["acl"]["document"]["Grants"]:
         if grant["Grantee"]["Type"] != "Group":
@@ -68,20 +64,20 @@ def _is_public_via_acl(bucket, account_bpa):
         if (
             grant["Grantee"]["URI"] == ALL_USERS_URI and grant["Permission"] in PERMISSION_ACL_CONTROLS
         ):
-            all_users_granted = True
+            all_users_grant = grant
 
         if (
             grant["Grantee"]["URI"] == AUTHENTICATED_USERS_URI and grant["Permission"] in PERMISSION_ACL_CONTROLS
         ):
-            authenticated_users_granted = True
+            authenticated_users_grant = grant
 
-    if all_users_granted:
-        return PublicExposure.ALL_USERS
+    if all_users_grant:
+        return PublicExposure.ALL_USERS, all_users_grant
 
-    if authenticated_users_granted:
-        return PublicExposure.AUTHENTICATED_USERS
+    if authenticated_users_grant:
+        return PublicExposure.AUTHENTICATED_USERS, authenticated_users_grant
 
-    return PublicExposure.NONE
+    return PublicExposure.NONE, None
     
 class S3PublicAccess(BaseCheck):
     control_id = "3.1.4"
@@ -107,7 +103,7 @@ class S3PublicAccess(BaseCheck):
         for bucket in buckets:
            resource_id = f"arn:aws:s3:::{bucket['name']}"
            try:
-                acl_public = _is_public_via_acl(bucket, account_bpa)
+                acl_exposure, acl_grant = _is_public_via_acl(bucket, account_bpa)
                 policy_public, statement = _is_public_via_policy(bucket, account_bpa)
            except NotReadableError as e:
                unevaluated_list.append({"resource_id": f"arn:aws:s3:::{bucket['name']}", "reason": e.reason})
@@ -125,11 +121,11 @@ class S3PublicAccess(BaseCheck):
                     evidence=bucket["policy"]["document"],
                     account_id=account_id
                 ))
-           if acl_public != PublicExposure.NONE:
+           if acl_exposure != PublicExposure.NONE:
                findings_list.append(Finding(
                     control_id=self.control_id,
                     title=self.title,
-                    severity=acl_public.severity,
+                    severity=CAPABILITY_TO_SEVERITY[acl_capability_level(acl_grant)],
                     resource_id=f"arn:aws:s3:::{bucket['name']}",
                     resource_sub_id="acl",
                     region=bucket["region"],
