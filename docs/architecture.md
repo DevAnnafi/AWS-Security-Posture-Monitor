@@ -184,3 +184,9 @@ Through decision 5 at the data layer and decision 1 at the result layer. A viola
 The `Finding` model deliberately does not express the third state. A finding asserts that something is wrong; "could not determine" asserts only absence of knowledge. Placing both in the same container would require every downstream consumer — dashboard, API, remediation trigger — to remember to filter one out, and a consumer that forgot would act on an unconfirmed finding.
 
 Under collect-then-evaluate the check never observes the failure directly. The `AccessDenied` is caught by the collector, recorded as per-value collection status in the snapshot, and interpreted by the runner or the check reading that status. The check remains a pure function and needs no knowledge of AWS failure modes.
+
+### CVSS exists. Why didn't you use it, or if you adapted it, what did you change?
+
+For essentially every misconfiguration this scanner produces, key CVSS metrics collapse: Attack Vector is Network, Privileges Required is None, and User Interaction is None. There often isn't even an exploit or meaningful Attack Complexity to model—the system is simply behaving as configured. So CVSS can produce a score, but it doesn't discriminate well between configuration findings.
+
+The tradeoff is that CVSS gives us portability and standardization: a security team already understands what a 9.1 means, and platforms like Security Hub can consume it. Our custom model requires people to learn our prioritization ladder. I chose the custom approach because, for this specific problem, better discrimination is more valuable than a standardized number.
