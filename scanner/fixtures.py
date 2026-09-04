@@ -1,6 +1,7 @@
 FIXTURE = {
     "collection_window": None,
     "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
 
     "account_bpa": {
         "status": "ok",
@@ -149,6 +150,7 @@ FIXTURE = {
 
 ALLUSERS_FIXTURE = {
     "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
 
     "account_bpa": {
         "status": "ok",
@@ -218,6 +220,7 @@ ALLUSERS_FIXTURE = {
 
 AUTHENTICATED_FIXTURE = {
     "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
 
     "account_bpa": {
         "status": "ok",
@@ -288,6 +291,7 @@ AUTHENTICATED_FIXTURE = {
 
 SECURITY_GROUP_FIXTURE = {
     "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
 
     "account_bpa": {
         "status": "ok",
@@ -349,6 +353,7 @@ SECURITY_GROUP_FIXTURE = {
 
 ACCESS_DENIED_FIXTURE = {
     "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
 
     "account_bpa": {
         "status": "ok",
@@ -374,6 +379,7 @@ ACCESS_DENIED_FIXTURE = {
 S3_NOTREADABLE_FIXTURE = {
     "collection_window": None,
     "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
 
     "account_bpa": {
         "status": "ok",
@@ -393,6 +399,7 @@ S3_NOTREADABLE_FIXTURE = {
 
 CLEAN_ENVIRONMENT_FIXTURE = {
      "account_id": "157182991517",
+     "regions_covered": ["us-east-1"],
     
         "account_bpa": {
             "status": "ok",
@@ -418,6 +425,7 @@ CLEAN_ENVIRONMENT_FIXTURE = {
 S3_EVERYTHING_FIXTURE = {
     "collection_window": None,
     "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
 
     "account_bpa": {
         "status": "ok",
