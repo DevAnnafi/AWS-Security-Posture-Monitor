@@ -1,5 +1,6 @@
 from scanner.registry import BaseCheck, CheckResult, CheckStatus
 from scanner.models import Severity, Finding
+from scanner.scoring import CAPABILITY_TO_SEVERITY, PORT_TO_CAPABILITY
 
 ADMIN_PORTS = (22, 3389)
 ANYWHERE_CIDR = "0.0.0.0/0"
@@ -59,7 +60,7 @@ class SecurityGroupAdminPorts(BaseCheck):
                 findings_list.append(Finding(
                     control_id=self.control_id,
                     title=self.title,
-                    severity=self.severity,
+                    severity=CAPABILITY_TO_SEVERITY[PORT_TO_CAPABILITY.get(port, 3)],
                     resource_id=group["GroupId"],
                     resource_sub_id=str(port),
                     region=group["region"],

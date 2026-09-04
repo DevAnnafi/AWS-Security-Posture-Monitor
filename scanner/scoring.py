@@ -8,6 +8,11 @@ CAPABILITY_TO_SEVERITY = {
     3 : Severity.CRITICAL
 }
 
+PORT_TO_CAPABILITY = {
+    22 : 3,
+    3389 : 3
+}
+
 def capability_level(statement):
     action = statement["Action"]
     if isinstance(action, str):
@@ -21,6 +26,7 @@ def acl_capability_level(grant):
     if acl == "READ":
         return 1
     return 2
+
     
 
 
