@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from scanner.registry import CheckResult, CHECK_REGISTRY
+from scanner.registry import CheckResult, CHECK_REGISTRY, CheckStatus
+import scanner.checks
 
 class ScanStatus(str, Enum):
     COMPLETED = "COMPLETED"
@@ -18,10 +19,28 @@ class ScanResults:
     ended_at: datetime | None = field(default=None)
 
 def run_scan(snapshot):
+    results = []
+
     for check_class in CHECK_REGISTRY.values():
-        print(check_class)
-        has_required_sections = all(s in snapshot for s in check_class.requires)
-        print(has_required_sections)
+        has_required_sections = all(
+            section in snapshot for section in check_class.requires
+        )
+
+        if has_required_sections:
+            check = check_class()
+            result = check.evaluate(snapshot)
+            results.append(result)
+
+        else:
+            result = CheckResult(
+                status=CheckStatus.CANT_EVALUATE,
+                findings=[],
+                control_id=check_class.control_id,
+                error="SECTION_NOT_COLLECTED",
+            )
+            results.append(result)
+
+    return results
 
 
     
