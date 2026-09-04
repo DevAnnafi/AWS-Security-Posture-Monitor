@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from enum import Enum, auto
-from scanner.registry import CheckResult
+from enum import Enum
+from scanner.registry import CheckResult, CHECK_REGISTRY
 
 class ScanStatus(str, Enum):
     COMPLETED = "COMPLETED"
@@ -16,4 +16,10 @@ class ScanResults:
     results: list[CheckResult]
     scanned_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     ended_at: datetime | None = field(default=None)
+
+def run_scan(snapshot):
+    for check_class in CHECK_REGISTRY.values():
+        print(check_class)
+
+
     
