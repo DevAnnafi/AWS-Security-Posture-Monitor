@@ -20,6 +20,8 @@ class ScanResults:
 def run_scan(snapshot):
     for check_class in CHECK_REGISTRY.values():
         print(check_class)
+        has_required_sections = all(s in snapshot for s in check_class.requires)
+        print(has_required_sections)
 
 
     
