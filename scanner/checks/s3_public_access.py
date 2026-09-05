@@ -1,8 +1,8 @@
 from scanner.registry import BaseCheck, CheckResult, CheckStatus
-from scanner.models import Severity, Finding
+from scanner.models import Finding
 from scanner.scoring import capability_level, CAPABILITY_TO_SEVERITY, acl_capability_level
 from enum import Enum
-from typing import NamedTuple, Optional
+
 
 ALL_USERS_URI = "http://acs.amazonaws.com/groups/global/AllUsers"
 AUTHENTICATED_USERS_URI = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers"
@@ -82,7 +82,6 @@ def _is_public_via_acl(bucket, account_bpa):
 class S3PublicAccess(BaseCheck):
     control_id = "3.1.4"
     title = "S3 Bucket Publicly Accessible"
-    severity = Severity.CRITICAL
     remediable = True
     requires =  ["s3_buckets", "account_bpa"]
 
