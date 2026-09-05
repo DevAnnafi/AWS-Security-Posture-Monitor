@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 import hashlib
 
 class Severity(IntEnum):
-    # four members
     CRITICAL = 4
     HIGH = 3
     MEDIUM = 2

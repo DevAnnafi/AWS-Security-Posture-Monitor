@@ -1,5 +1,5 @@
 from scanner.registry import BaseCheck, CheckResult, CheckStatus
-from scanner.models import Severity, Finding
+from scanner.models import Finding
 from scanner.scoring import CAPABILITY_TO_SEVERITY, PORT_TO_CAPABILITY
 
 ADMIN_PORTS = (22, 3389)
@@ -34,7 +34,6 @@ def _open_admin_ports(rule):
 class SecurityGroupAdminPorts(BaseCheck):
     control_id = "6.3"
     title = "Security group allows 0.0.0.0/0 on port 22 and 3389"
-    severity = Severity.CRITICAL
     remediable = True
     requires =  ["security_groups"]
 
