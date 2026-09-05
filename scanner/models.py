@@ -1,14 +1,41 @@
 from dataclasses import dataclass, field, asdict
-from enum import IntEnum
+from enum import IntEnum, Enum
 from typing import Any
 from datetime import datetime, timezone
 import hashlib
+import json
+from botocore.exceptions import ClientError
 
 class Severity(IntEnum):
     CRITICAL = 4
     HIGH = 3
     MEDIUM = 2
     LOW = 1
+
+class CollectionStatus(Enum):
+    OK = "ok"
+    ACCESS_DENIED = "access_denied"
+    PARSE_ERROR = "parse_error"
+
+def collect_policy(s3_client, bucket_name):
+    try:
+        response = s3_client.get_bucket_policy(Bucket=bucket_name)
+        document = json.loads(response["Policy"])
+        return {"status": CollectionStatus.OK.value, "document": document}
+
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+
+        if error_code == "NoSuchBucketPolicy":
+            return {"status": CollectionStatus.OK.value, "document": None}
+
+        if error_code == "AccessDenied":
+            return {"status": CollectionStatus.ACCESS_DENIED.value, "document": None}
+
+        raise
+
+    except json.JSONDecodeError:
+        return {"status": CollectionStatus.PARSE_ERROR.value, "document": None}
 
 
 @dataclass

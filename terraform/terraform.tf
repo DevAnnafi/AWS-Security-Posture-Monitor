@@ -11,7 +11,7 @@ terraform {
 
 provider "aws" {
   region  = var.region
-  profile = "cspm"
+  profile = "terraform"
 
   default_tags {
     tags = {
