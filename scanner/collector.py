@@ -174,3 +174,32 @@ def collect_account_bpa(s3control_client, account_id):
 
         raise
 
+def collect_security_groups(ec2_client):
+    try:
+        response = ec2_client.describe_security_groups()
+
+        region = ec2_client.meta.region_name
+
+        groups = []
+
+        for group in response["SecurityGroups"]:
+            group = dict(group)
+            group["region"] = region
+            groups.append(group)
+
+        return {
+            "status": CollectionStatus.OK.value,
+            "document": groups,
+        }
+
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+
+        if error_code == "UnauthorizedOperation":
+            return {
+                "status": CollectionStatus.ACCESS_DENIED.value,
+                "document": None,
+            }
+
+        raise
+
