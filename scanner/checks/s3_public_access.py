@@ -123,7 +123,9 @@ class S3PublicAccess(BaseCheck):
                 )
             except NotReadableError as e:
                 unevaluated_list.append({
-                    "resource_id": resource_id,
+                    "target_type": "bucket",
+                    "target": resource_id,
+                    "value": e.value_name,
                     "reason": e.reason,
                 })
                 continue

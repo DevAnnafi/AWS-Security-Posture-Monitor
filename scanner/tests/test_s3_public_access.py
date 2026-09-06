@@ -7,7 +7,7 @@
 """
 
 from scanner.checks.s3_public_access import S3PublicAccess
-from scanner.fixtures import FIXTURE, CLEAN_ENVIRONMENT_FIXTURE, S3_NOTREADABLE_FIXTURE, S3_EVERYTHING_FIXTURE
+from scanner.fixtures import FIXTURE, CLEAN_ENVIRONMENT_FIXTURE, S3_NOTREADABLE_FIXTURE, S3_EVERYTHING_FIXTURE, S3_ACCOUNT_BPA_NOTREADABLE_FIXTURE
 from scanner.registry import CheckStatus
 from scanner.models import Severity
 
@@ -22,7 +22,9 @@ def test_s3_public_access():
     assert result.findings[0].resource_id == "arn:aws:s3:::bucket-a"
 
     assert len(result.unevaluated) == 1
-    assert result.unevaluated[0]["resource_id"] == "arn:aws:s3:::bucket-c"
+    assert result.unevaluated[0]["target_type"] == "bucket"
+    assert result.unevaluated[0]["target"] == "arn:aws:s3:::bucket-c"
+    assert result.unevaluated[0]["value"] == "policy"
 
 def test_s3_clean_environment():
     check = S3PublicAccess()
@@ -53,3 +55,13 @@ def test_policy_severity_everything():
     result = check.evaluate(S3_EVERYTHING_FIXTURE)
 
     assert result.findings[0].severity == Severity.HIGH
+
+def test_account_bpa_access_denied_cannot_evaluate():
+    result = S3PublicAccess().evaluate(
+        S3_ACCOUNT_BPA_NOTREADABLE_FIXTURE
+    )
+
+    assert result.status == CheckStatus.CANT_EVALUATE
+    assert result.findings == []
+    assert result.unevaluated == []
+    assert result.error == "access_denied"

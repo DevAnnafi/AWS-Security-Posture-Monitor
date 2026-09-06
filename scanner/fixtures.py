@@ -502,3 +502,63 @@ S3_EVERYTHING_FIXTURE = {
         ],
     },
 }
+
+S3_ACCOUNT_BPA_NOTREADABLE_FIXTURE = {
+    "collection_window": None,
+    "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
+
+    "account_bpa": {
+        "status": "access_denied",
+        "document": None,
+    },
+
+    "s3_buckets": {
+        "status": "ok",
+        "document": [
+            {
+                "name": "bucket-a",
+                "region": "us-east-1",
+                "bucket_bpa": {
+                    "status": "ok",
+                    "document": {
+                        "BlockPublicAcls": True,
+                        "IgnorePublicAcls": True,
+                        "BlockPublicPolicy": False,
+                        "RestrictPublicBuckets": False,
+                    },
+                },
+                "ownership_controls": {
+                    "status": "ok",
+                    "document": {
+                        "Rules": [
+                            {"ObjectOwnership": "BucketOwnerPreferred"}
+                        ]
+                    },
+                },
+                "policy": {
+                    "status": "ok",
+                    "document": None,
+                },
+                "acl": {
+                    "status": "ok",
+                    "document": {
+                        "Owner": {
+                            "ID": "bucket_1",
+                            "DisplayName": "bucket-owner-admin",
+                        },
+                        "Grants": [
+                            {
+                                "Grantee": {
+                                    "ID": "owner-user-id-12345",
+                                    "Type": "CanonicalUser",
+                                },
+                                "Permission": "FULL_CONTROL",
+                            }
+                        ],
+                    },
+                },
+            }
+        ],
+    },
+}
