@@ -137,3 +137,40 @@ def collect_bucket_bpa(s3_client, bucket_name):
 
         raise
 
+def collect_account_bpa(s3control_client, account_id):
+    try:
+        response = s3control_client.get_public_access_block(
+            AccountId=account_id
+        )
+        return {
+            "status": CollectionStatus.OK.value,
+            "document": response["PublicAccessBlockConfiguration"],
+        }
+
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+
+        if error_code == "NoSuchPublicAccessBlockConfiguration":
+            # AWS distinguishes no BPA configuration from an explicit
+            # all-false configuration. For our CSPM checks, they are
+            # operationally equivalent: none of the four protections
+            # are enabled. Normalize the absent configuration to all
+            # False so consumers always receive boolean BPA flags.
+            return {
+                "status": CollectionStatus.OK.value,
+                "document": {
+                    "BlockPublicAcls": False,
+                    "IgnorePublicAcls": False,
+                    "BlockPublicPolicy": False,
+                    "RestrictPublicBuckets": False,
+                },
+            }
+
+        if error_code == "AccessDenied":
+            return {
+                "status": CollectionStatus.ACCESS_DENIED.value,
+                "document": None,
+            }
+
+        raise
+
