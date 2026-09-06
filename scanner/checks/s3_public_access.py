@@ -94,43 +94,68 @@ class S3PublicAccess(BaseCheck):
                 error=snapshot["s3_buckets"]["status"],
                 unevaluated=[],
             )
+
         buckets = snapshot["s3_buckets"]["document"]
         account_bpa = snapshot["account_bpa"]
+
+        if account_bpa["status"] != "ok":
+            return CheckResult(
+                status=CheckStatus.CANT_EVALUATE,
+                findings=[],
+                control_id=self.control_id,
+                error=account_bpa["status"],
+                unevaluated=[],
+            )
+
         unevaluated_list = []
         findings_list = []
         account_id = snapshot["account_id"]
+
         for bucket in buckets:
-           resource_id = f"arn:aws:s3:::{bucket['name']}"
-           try:
-                acl_exposure, acl_grant = _is_public_via_acl(bucket, account_bpa)
-                policy_public, statement = _is_public_via_policy(bucket, account_bpa)
-           except NotReadableError as e:
-               unevaluated_list.append({"resource_id": f"arn:aws:s3:::{bucket['name']}", "reason": e.reason})
-               continue
-          
-           if policy_public is True:
+            resource_id = f"arn:aws:s3:::{bucket['name']}"
+
+            try:
+                acl_exposure, acl_grant = _is_public_via_acl(
+                    bucket, account_bpa
+                )
+                policy_public, statement = _is_public_via_policy(
+                    bucket, account_bpa
+                )
+            except NotReadableError as e:
+                unevaluated_list.append({
+                    "resource_id": resource_id,
+                    "reason": e.reason,
+                })
+                continue
+
+            if policy_public is True:
                 findings_list.append(Finding(
                     control_id=self.control_id,
                     title=self.title,
-                    severity=CAPABILITY_TO_SEVERITY[capability_level(statement)],
+                    severity=CAPABILITY_TO_SEVERITY[
+                        capability_level(statement)
+                    ],
                     resource_id=resource_id,
                     resource_sub_id="policy",
                     region=bucket["region"],
                     remediable=self.remediable,
                     evidence=bucket["policy"]["document"],
-                    account_id=account_id
+                    account_id=account_id,
                 ))
-           if acl_exposure != PublicExposure.NONE:
-               findings_list.append(Finding(
+
+            if acl_exposure != PublicExposure.NONE:
+                findings_list.append(Finding(
                     control_id=self.control_id,
                     title=self.title,
-                    severity=CAPABILITY_TO_SEVERITY[acl_capability_level(acl_grant)],
-                    resource_id=f"arn:aws:s3:::{bucket['name']}",
+                    severity=CAPABILITY_TO_SEVERITY[
+                        acl_capability_level(acl_grant)
+                    ],
+                    resource_id=resource_id,
                     resource_sub_id="acl",
                     region=bucket["region"],
                     remediable=self.remediable,
                     evidence=bucket["acl"]["document"],
-                    account_id=account_id
+                    account_id=account_id,
                 ))
 
         if unevaluated_list:
