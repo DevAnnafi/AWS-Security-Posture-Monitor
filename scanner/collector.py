@@ -203,3 +203,67 @@ def collect_security_groups(ec2_client):
 
         raise
 
+def collect_snapshot():
+    s3_client = boto3.client("s3")
+    s3control_client = boto3.client("s3control")
+    ec2_client = boto3.client("ec2")
+    sts_client = boto3.client("sts")
+
+    account_id = sts_client.get_caller_identity()["Account"]
+
+    regions_covered = [s3_client.meta.region_name]
+
+    try:
+        bucket_response = s3_client.list_buckets()
+        s3_status = CollectionStatus.OK.value
+        buckets = []
+
+        for bucket in bucket_response["Buckets"]:
+            bucket_name = bucket["Name"]
+
+            location_response = s3_client.get_bucket_location(
+                Bucket=bucket_name
+            )
+            region = location_response.get("LocationConstraint")
+
+            if region is None:
+                region = "us-east-1"
+
+            buckets.append({
+                "name": bucket_name,
+                "region": region,
+                "policy": collect_policy(s3_client, bucket_name),
+                "acl": collect_acl(s3_client, bucket_name),
+                "ownership_controls": collect_ownership_controls(
+                    s3_client, bucket_name
+                ),
+                "bucket_bpa": collect_bucket_bpa(
+                    s3_client, bucket_name
+                ),
+            })
+
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+
+        if error_code == "AccessDenied":
+            s3_status = CollectionStatus.ACCESS_DENIED.value
+            buckets = None
+        else:
+            raise
+
+    return {
+        "account_id": account_id,
+        "regions_covered": regions_covered,
+        "s3_buckets": {
+            "status": s3_status,
+            "document": buckets,
+        },
+        "account_bpa": collect_account_bpa(
+            s3control_client,
+            account_id,
+        ),
+        "security_groups": collect_security_groups(
+            ec2_client,
+        ),
+    }
+
