@@ -32,3 +32,23 @@ def collect_policy(s3_client, bucket_name):
 
     except json.JSONDecodeError:
         return {"status": CollectionStatus.PARSE_ERROR.value, "document": None}
+
+def collect_acl(s3_client, bucket_name):
+    try:
+        response = s3_client.get_bucket_acl(Bucket=bucket_name)
+        return {
+            "status": CollectionStatus.OK.value,
+            "document": {
+                "Owner": response["Owner"],
+                "Grants": response["Grants"],
+            },
+        }
+    
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+
+        if error_code == "AccessDenied":
+            return {"status": CollectionStatus.ACCESS_DENIED.value, "document": None}
+
+        raise
+
