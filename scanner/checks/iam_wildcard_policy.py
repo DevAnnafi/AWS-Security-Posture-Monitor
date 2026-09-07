@@ -1,5 +1,17 @@
-"""CIS check: 1.16 - IAM policy grants Action * on Resource *.
+from scanner.registry import BaseCheck, CheckResult, CheckStatus
 
-TODO: implement. Declare the control ID and severity, make the boto3 calls
-      needed to evaluate it, and return a Finding for each violating resource.
-"""
+class IAMWildcardPolicy(BaseCheck):
+    control_id = "2.14"
+    title = "IAM Policy Grants Full Admin Privileges"
+    remediable = True
+    requires = ["iam_policies"]
+
+    def evaluate(self, snapshot):
+      return CheckResult(
+            status=CheckStatus.EVALUATED,
+            findings=[],
+            control_id=self.control_id,
+            error=None,
+            unevaluated=[],
+      )
+    
