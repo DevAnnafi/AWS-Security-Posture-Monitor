@@ -33,3 +33,10 @@ class BaseCheck(ABC):
       super().__init_subclass__(**kwargs)
       CHECK_REGISTRY[cls.control_id] = cls
 
+def derive_status(findings, unevaluated):
+    if unevaluated:
+        return CheckStatus.PARTIAL
+    if findings:
+        return CheckStatus.VIOLATIONS
+    
+    return CheckStatus.EVALUATED

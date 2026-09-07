@@ -1,6 +1,7 @@
 from scanner.registry import BaseCheck, CheckResult, CheckStatus
 from scanner.models import Finding, Severity
 from scanner.collector import CollectionStatus
+from scanner.registry import derive_status
 
 
 def _grants_full_admin(document):
@@ -78,17 +79,10 @@ class IAMWildcardPolicy(BaseCheck):
                     )
                 )
 
-        if unevaluated:
-            status = CheckStatus.PARTIAL
-        elif findings:
-            status = CheckStatus.VIOLATIONS
-        else:
-            status = CheckStatus.EVALUATED
-
         return CheckResult(
-            status=status,
-            findings=findings,
-            control_id=self.control_id,
-            error=None,
-            unevaluated=unevaluated,
-        )
+                  status=derive_status(findings, unevaluated),
+                  findings=findings,
+                  control_id=self.control_id,
+                  error=None,
+                  unevaluated=unevaluated,
+            )

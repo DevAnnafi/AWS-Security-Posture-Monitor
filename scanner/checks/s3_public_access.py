@@ -1,6 +1,7 @@
 from scanner.registry import BaseCheck, CheckResult, CheckStatus
 from scanner.models import Finding
 from scanner.scoring import capability_level, CAPABILITY_TO_SEVERITY, acl_capability_level
+from scanner.registry import derive_status
 from enum import Enum
 
 
@@ -160,15 +161,8 @@ class S3PublicAccess(BaseCheck):
                     account_id=account_id,
                 ))
 
-        if unevaluated_list:
-            status = CheckStatus.PARTIAL
-        elif findings_list:
-            status = CheckStatus.VIOLATIONS
-        else:
-            status = CheckStatus.EVALUATED
-
         return CheckResult(
-            status=status,
+            status=derive_status(findings_list, unevaluated_list),
             findings=findings_list,
             control_id=self.control_id,
             error=None,
