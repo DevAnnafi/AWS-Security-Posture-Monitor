@@ -312,44 +312,51 @@ SECURITY_GROUP_FIXTURE = {
         "status": "ok",
         "document": [
             {
-                "GroupId": "sg-0123456789abcdef0",
                 "region": "us-east-1",
-                "IpPermissions": [
+                "status": "ok",
+                "document": [
                     {
-                        "IpProtocol": "tcp",
-                        "FromPort": 22,
-                        "ToPort": 22,
-                        "IpRanges": [
+                        "GroupId": "sg-0123456789abcdef0",
+                        "region": "us-east-1",
+                        "IpPermissions": [
                             {
-                                "CidrIp": "0.0.0.0/0"
-                            }
-                        ],
-                    },
-                    {
-                        "IpProtocol": "tcp",
-                        "FromPort": 3389,
-                        "ToPort": 3389,
-                        "IpRanges": [
+                                "IpProtocol": "tcp",
+                                "FromPort": 22,
+                                "ToPort": 22,
+                                "IpRanges": [
+                                    {
+                                        "CidrIp": "0.0.0.0/0"
+                                    }
+                                ],
+                            },
                             {
-                                "CidrIp": "0.0.0.0/0"
-                            }
-                        ],
-                    },
-                    {
-                        "IpProtocol": "tcp",
-                        "FromPort": 443,
-                        "ToPort": 443,
-                        "IpRanges": [
+                                "IpProtocol": "tcp",
+                                "FromPort": 3389,
+                                "ToPort": 3389,
+                                "IpRanges": [
+                                    {
+                                        "CidrIp": "0.0.0.0/0"
+                                    }
+                                ],
+                            },
                             {
-                                "CidrIp": "0.0.0.0/0"
-                            }
+                                "IpProtocol": "tcp",
+                                "FromPort": 443,
+                                "ToPort": 443,
+                                "IpRanges": [
+                                    {
+                                        "CidrIp": "0.0.0.0/0"
+                                    }
+                                ],
+                            },
                         ],
-                    },
+                    }
                 ],
             }
         ],
     },
 }
+
 
 ACCESS_DENIED_FIXTURE = {
     "account_id": "157182991517",
@@ -372,54 +379,46 @@ ACCESS_DENIED_FIXTURE = {
 
     "security_groups": {
         "status": "access_denied",
-        "document": None,
+        "document": [
+            {
+                "region": "us-east-1",
+                "status": "access_denied",
+                "document": None,
+            }
+        ],
     },
 }
 
-S3_NOTREADABLE_FIXTURE = {
-    "collection_window": None,
+
+CLEAN_ENVIRONMENT_FIXTURE = {
     "account_id": "157182991517",
     "regions_covered": ["us-east-1"],
 
     "account_bpa": {
         "status": "ok",
         "document": {
-            "BlockPublicAcls": True,
-            "IgnorePublicAcls": True,
+            "BlockPublicAcls": False,
+            "IgnorePublicAcls": False,
             "BlockPublicPolicy": False,
             "RestrictPublicBuckets": False,
         },
     },
 
     "s3_buckets": {
-        "status": "access_denied",
-        "document": None           
+        "status": "ok",
+        "document": [],
     },
-}
-
-CLEAN_ENVIRONMENT_FIXTURE = {
-     "account_id": "157182991517",
-     "regions_covered": ["us-east-1"],
-    
-        "account_bpa": {
-            "status": "ok",
-            "document": {
-                "BlockPublicAcls": False,
-                "IgnorePublicAcls": False,
-                "BlockPublicPolicy": False,
-                "RestrictPublicBuckets": False,
-            },
-        },
-
-    "s3_buckets": {
-            "status": "ok",
-            "document": []           
-        },
 
     "security_groups": {
         "status": "ok",
-        "document": []
-        },
+        "document": [
+            {
+                "region": "us-east-1",
+                "status": "ok",
+                "document": [],
+            }
+        ],
+    },
 }
 
 S3_EVERYTHING_FIXTURE = {
@@ -500,6 +499,27 @@ S3_EVERYTHING_FIXTURE = {
                 },
             },
         ],
+    },
+}
+
+S3_NOTREADABLE_FIXTURE = {
+    "collection_window": None,
+    "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
+
+    "account_bpa": {
+        "status": "ok",
+        "document": {
+            "BlockPublicAcls": True,
+            "IgnorePublicAcls": True,
+            "BlockPublicPolicy": False,
+            "RestrictPublicBuckets": False,
+        },
+    },
+
+    "s3_buckets": {
+        "status": "access_denied",
+        "document": None           
     },
 }
 

@@ -7,6 +7,7 @@ import json
 class CollectionStatus(Enum):
     OK = "ok"
     ACCESS_DENIED = "access_denied"
+    PARTIAL = "partial"  # Aggregate status across multiple regions
     PARSE_ERROR = "parse_error"
 
 
@@ -137,6 +138,7 @@ def collect_bucket_bpa(s3_client, bucket_name):
 
         raise
 
+
 def collect_account_bpa(s3control_client, account_id):
     try:
         response = s3control_client.get_public_access_block(
@@ -174,44 +176,78 @@ def collect_account_bpa(s3control_client, account_id):
 
         raise
 
-def collect_security_groups(ec2_client):
-    try:
-        response = ec2_client.describe_security_groups()
 
-        region = ec2_client.meta.region_name
+def collect_security_groups(regions):
+    document = []
 
-        groups = []
+    for region in regions:
+        ec2_client = boto3.client("ec2", region_name=region)
 
-        for group in response["SecurityGroups"]:
-            group = dict(group)
-            group["region"] = region
-            groups.append(group)
+        try:
+            response = ec2_client.describe_security_groups()
 
-        return {
-            "status": CollectionStatus.OK.value,
-            "document": groups,
-        }
+            groups = []
 
-    except ClientError as e:
-        error_code = e.response["Error"]["Code"]
+            for group in response["SecurityGroups"]:
+                group = dict(group)
+                group["region"] = region
+                groups.append(group)
 
-        if error_code == "UnauthorizedOperation":
-            return {
-                "status": CollectionStatus.ACCESS_DENIED.value,
-                "document": None,
-            }
+            document.append({
+                "region": region,
+                "status": CollectionStatus.OK.value,
+                "document": groups,
+            })
 
-        raise
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+
+            if error_code == "UnauthorizedOperation":
+                document.append({
+                    "region": region,
+                    "status": CollectionStatus.ACCESS_DENIED.value,
+                    "document": None,
+                })
+            else:
+                raise
+
+    if not document:
+        status = CollectionStatus.ACCESS_DENIED.value
+    elif all(
+        entry["status"] == CollectionStatus.OK.value
+        for entry in document
+    ):
+        status = CollectionStatus.OK.value
+    elif all(
+        entry["status"] == CollectionStatus.ACCESS_DENIED.value
+        for entry in document
+    ):
+        status = CollectionStatus.ACCESS_DENIED.value
+    else:
+        status = CollectionStatus.PARTIAL.value
+
+    return {
+        "status": status,
+        "document": document,
+    }
+
 
 def collect_snapshot():
     s3_client = boto3.client("s3")
     s3control_client = boto3.client("s3control")
-    ec2_client = boto3.client("ec2")
     sts_client = boto3.client("sts")
 
     account_id = sts_client.get_caller_identity()["Account"]
 
-    regions_covered = [s3_client.meta.region_name]
+    # TODO: Discover/configure all regions instead of hardcoding.
+    regions = [
+        "us-east-1",
+        "us-east-2",
+        "us-west-1",
+        "us-west-2",
+    ]
+
+    regions_covered = regions
 
     try:
         bucket_response = s3_client.list_buckets()
@@ -235,10 +271,12 @@ def collect_snapshot():
                 "policy": collect_policy(s3_client, bucket_name),
                 "acl": collect_acl(s3_client, bucket_name),
                 "ownership_controls": collect_ownership_controls(
-                    s3_client, bucket_name
+                    s3_client,
+                    bucket_name,
                 ),
                 "bucket_bpa": collect_bucket_bpa(
-                    s3_client, bucket_name
+                    s3_client,
+                    bucket_name,
                 ),
             })
 
@@ -263,7 +301,6 @@ def collect_snapshot():
             account_id,
         ),
         "security_groups": collect_security_groups(
-            ec2_client,
+            regions,
         ),
     }
-

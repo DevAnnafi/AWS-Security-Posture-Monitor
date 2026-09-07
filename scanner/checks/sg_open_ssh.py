@@ -1,6 +1,7 @@
 from scanner.registry import BaseCheck, CheckResult, CheckStatus
 from scanner.models import Finding
 from scanner.scoring import CAPABILITY_TO_SEVERITY, PORT_TO_CAPABILITY
+from scanner.collector import CollectionStatus
 
 ADMIN_PORTS = (22, 3389)
 ANYWHERE_CIDR = "0.0.0.0/0"
@@ -38,37 +39,48 @@ class SecurityGroupAdminPorts(BaseCheck):
     requires =  ["security_groups"]
 
     def evaluate(self, snapshot):
-        if snapshot["security_groups"]["status"] != "ok":
-            return CheckResult(
-                status=CheckStatus.CANT_EVALUATE,
-                findings=[],
-                control_id=self.control_id,
-                error=snapshot["security_groups"]["status"],
-                unevaluated=[],
-            )
         security_groups = snapshot["security_groups"]["document"]
         findings_list = []
         account_id = snapshot["account_id"]
         unevaluated_list = []
-        for group in security_groups:
-            ports = set()
-            for permission in group["IpPermissions"]:
-                ports.update(_open_admin_ports(permission))
 
-            for port in ports:
-                findings_list.append(Finding(
-                    control_id=self.control_id,
-                    title=self.title,
-                    severity=CAPABILITY_TO_SEVERITY[PORT_TO_CAPABILITY.get(port, 3)],
-                    resource_id=group["GroupId"],
-                    resource_sub_id=str(port),
-                    region=group["region"],
-                    remediable=self.remediable,
-                    evidence=group["IpPermissions"],
-                    account_id=account_id
-                ))
+        for region_entry in security_groups:
+            if region_entry["status"] != CollectionStatus.OK.value:
+                unevaluated_list.append({
+                    "target_type": "region",
+                    "target": region_entry["region"],
+                    "value": None,
+                    "reason": region_entry["status"],
+                })
+                continue
 
-        if unevaluated_list:
+            for group in region_entry["document"]:
+                ports = set()
+
+                for permission in group["IpPermissions"]:
+                    ports.update(_open_admin_ports(permission))
+
+                for port in ports:
+                    findings_list.append(Finding(
+                        control_id=self.control_id,
+                        title=self.title,
+                        severity=CAPABILITY_TO_SEVERITY[
+                            PORT_TO_CAPABILITY.get(port, 3)
+                        ],
+                        resource_id=group["GroupId"],
+                        resource_sub_id=str(port),
+                        region=group["region"],
+                        remediable=self.remediable,
+                        evidence=group["IpPermissions"],
+                        account_id=account_id
+                    ))
+
+        if not any(
+            entry["status"] == CollectionStatus.OK.value
+            for entry in security_groups
+        ):
+            status = CheckStatus.CANT_EVALUATE
+        elif unevaluated_list:
             status = CheckStatus.PARTIAL
         elif findings_list:
             status = CheckStatus.VIOLATIONS
@@ -80,5 +92,5 @@ class SecurityGroupAdminPorts(BaseCheck):
             findings=findings_list,
             control_id=self.control_id,
             error=None,
-            unevaluated=[],
-            )
+            unevaluated=unevaluated_list,
+        )
