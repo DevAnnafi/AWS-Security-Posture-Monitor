@@ -409,6 +409,11 @@ CLEAN_ENVIRONMENT_FIXTURE = {
         "document": [],
     },
 
+    "iam_policies": {
+        "status": "ok",
+        "document": [],
+    },
+
     "security_groups": {
         "status": "ok",
         "document": [
@@ -574,6 +579,165 @@ S3_ACCOUNT_BPA_NOTREADABLE_FIXTURE = {
                                     "Type": "CanonicalUser",
                                 },
                                 "Permission": "FULL_CONTROL",
+                            }
+                        ],
+                    },
+                },
+            }
+        ],
+    },
+}
+
+IAM_WILDCARD_POLICY_FIXTURE = {
+    "collection_window": None,
+    "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
+
+    "iam_policies": {
+        "status": "ok",
+        "document": [
+            {
+                "name": "full-admin-policy",
+                "arn": "arn:aws:iam::157182991517:policy/full-admin-policy",
+                "attachment_count": 1,
+                "document": {
+                    "status": "ok",
+                    "document": {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Action": "*",
+                                "Resource": "*",
+                            }
+                        ],
+                    },
+                },
+            }
+        ],
+    },
+}
+
+
+IAM_UNATTACHED_WILDCARD_POLICY_FIXTURE = {
+    "collection_window": None,
+    "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
+
+    "iam_policies": {
+        "status": "ok",
+        "document": [
+            {
+                "name": "unattached-full-admin-policy",
+                "arn": (
+                    "arn:aws:iam::157182991517:policy/"
+                    "unattached-full-admin-policy"
+                ),
+                "attachment_count": 0,
+                "document": {
+                    "status": "ok",
+                    "document": {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Action": "*",
+                                "Resource": "*",
+                            }
+                        ],
+                    },
+                },
+            }
+        ],
+    },
+}
+
+IAM_WILDCARD_POLICY_FIXTURE = {
+    "collection_window": None,
+    "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
+
+    "iam_policies": {
+        "status": "ok",
+        "document": [
+            {
+                "name": "full-admin-policy",
+                "arn": "arn:aws:iam::157182991517:policy/full-admin-policy",
+                "attachment_count": 1,
+                "document": {
+                    "status": "ok",
+                    "document": {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Action": "*",
+                                "Resource": "*",
+                            }
+                        ],
+                    },
+                },
+            }
+        ],
+    },
+}
+
+
+IAM_UNATTACHED_WILDCARD_POLICY_FIXTURE = {
+    "collection_window": None,
+    "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
+
+    "iam_policies": {
+        "status": "ok",
+        "document": [
+            {
+                "name": "unattached-full-admin-policy",
+                "arn": (
+                    "arn:aws:iam::157182991517:policy/"
+                    "unattached-full-admin-policy"
+                ),
+                "attachment_count": 0,
+                "document": {
+                    "status": "ok",
+                    "document": {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Action": "*",
+                                "Resource": "*",
+                            }
+                        ],
+                    },
+                },
+            }
+        ],
+    },
+}
+
+
+IAM_SERVICE_WILDCARD_POLICY_FIXTURE = {
+    "collection_window": None,
+    "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
+
+    "iam_policies": {
+        "status": "ok",
+        "document": [
+            {
+                "name": "s3-wildcard-policy",
+                "arn": "arn:aws:iam::157182991517:policy/s3-wildcard-policy",
+                "attachment_count": 1,
+                "document": {
+                    "status": "ok",
+                    "document": {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Action": "s3:*",
+                                "Resource": "*",
                             }
                         ],
                     },
