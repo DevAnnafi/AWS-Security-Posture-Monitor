@@ -7,6 +7,11 @@ resource "aws_s3_bucket" "public" {
   bucket = "${var.name_prefix}-public-bucket"
 }
 
+resource "aws_s3_bucket" "scale_test" {
+  count  = 50
+  bucket = "${var.name_prefix}-scale-${count.index}"
+}
+
 resource "aws_s3_bucket_public_access_block" "public" {
   bucket = aws_s3_bucket.public.id
 

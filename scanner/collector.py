@@ -1,4 +1,5 @@
 from enum import Enum
+from concurrent.futures import ThreadPoolExecutor
 from botocore.exceptions import ClientError
 import boto3
 import json
@@ -11,10 +12,29 @@ class CollectionStatus(Enum):
     PARSE_ERROR = "parse_error"
 
 
-def collect_buckets():
-    client = boto3.client("s3")
-    response = client.list_buckets()
-    return response
+def collect_bucket(s3_client, bucket_name):
+    location_response = s3_client.get_bucket_location(
+        Bucket=bucket_name
+    )
+    region = location_response.get("LocationConstraint")
+
+    if region is None:
+        region = "us-east-1"
+
+    return {
+        "name": bucket_name,
+        "region": region,
+        "policy": collect_policy(s3_client, bucket_name),
+        "acl": collect_acl(s3_client, bucket_name),
+        "ownership_controls": collect_ownership_controls(
+            s3_client,
+            bucket_name,
+        ),
+        "bucket_bpa": collect_bucket_bpa(
+            s3_client,
+            bucket_name,
+        ),
+    }
 
 
 def collect_policy(s3_client, bucket_name):
@@ -252,33 +272,22 @@ def collect_snapshot():
     try:
         bucket_response = s3_client.list_buckets()
         s3_status = CollectionStatus.OK.value
-        buckets = []
 
-        for bucket in bucket_response["Buckets"]:
-            bucket_name = bucket["Name"]
+        bucket_names = [
+            bucket["Name"]
+            for bucket in bucket_response["Buckets"]
+        ]
 
-            location_response = s3_client.get_bucket_location(
-                Bucket=bucket_name
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            buckets = list(
+                executor.map(
+                    lambda name: collect_bucket(
+                        s3_client,
+                        name,
+                    ),
+                    bucket_names,
+                )
             )
-            region = location_response.get("LocationConstraint")
-
-            if region is None:
-                region = "us-east-1"
-
-            buckets.append({
-                "name": bucket_name,
-                "region": region,
-                "policy": collect_policy(s3_client, bucket_name),
-                "acl": collect_acl(s3_client, bucket_name),
-                "ownership_controls": collect_ownership_controls(
-                    s3_client,
-                    bucket_name,
-                ),
-                "bucket_bpa": collect_bucket_bpa(
-                    s3_client,
-                    bucket_name,
-                ),
-            })
 
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
