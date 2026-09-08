@@ -3,6 +3,7 @@ from scanner.fixtures import (
     IAM_WILDCARD_POLICY_FIXTURE,
     IAM_UNATTACHED_WILDCARD_POLICY_FIXTURE,
     IAM_SERVICE_WILDCARD_POLICY_FIXTURE,
+    IAM_NOTREADABLE_FIXTURE
 )
 from scanner.models import Severity
 from scanner.registry import CheckStatus
@@ -41,3 +42,13 @@ def test_service_wildcard_policy_is_not_a_finding():
 
     assert result.status == CheckStatus.EVALUATED
     assert len(result.findings) == 0
+
+def test_iam_section_unreadable_cannot_evaluate():
+    check = IAMWildcardPolicy()
+
+    result = check.evaluate(IAM_NOTREADABLE_FIXTURE)
+
+    assert result.status == CheckStatus.CANT_EVALUATE
+    assert len(result.findings) == 0
+
+    assert result.error == "access_denied"

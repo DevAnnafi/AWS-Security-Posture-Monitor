@@ -767,3 +767,12 @@ ACL_READ_ACP_FIXTURE = deepcopy(ALLUSERS_FIXTURE)
 ACL_READ_ACP_FIXTURE["s3_buckets"]["document"][0]["acl"]["document"]["Grants"][0][
     "Permission"
 ] = "READ_ACP"
+
+IAM_NOTREADABLE_FIXTURE = {
+    "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
+    "iam_policies": {
+        "status": "access_denied",
+        "document": None,
+    },
+}
