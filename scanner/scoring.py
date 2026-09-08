@@ -1,6 +1,6 @@
 from scanner.models import Severity
 
-READ_ONLY_LIST = ["s3:GetObject", "s3:ListBucket"]
+READ_ONLY_LIST = [ "s3:ListBucket"]
 
 CAPABILITY_TO_SEVERITY = {
     1 : Severity.MEDIUM,
