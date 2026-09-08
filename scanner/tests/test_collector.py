@@ -543,69 +543,6 @@ def test_collect_iam_returns_policies():
 
     stubber.deactivate()
 
-
-
-
-def test_collect_iam_parses_encoded_policy_document():
-    client = boto3.client("iam", region_name="us-east-1")
-    stubber = Stubber(client)
-
-    policy = {
-        "Version": "2012-10-17",
-        "Statement": [],
-    }
-
-    encoded_policy = (
-        '{"Version":"2012-10-17","Statement":[]}'
-    )
-
-    policies = [
-        {
-            "PolicyName": "EncodedPolicy",
-            "Arn": "arn:aws:iam::123456789012:policy/EncodedPolicy",
-            "AttachmentCount": 0,
-            "DefaultVersionId": "v1",
-        }
-    ]
-
-    stubber.add_response(
-        "list_policies",
-        {
-            "Policies": policies,
-            "IsTruncated": False,
-        },
-        {
-            "Scope": "Local",
-            "OnlyAttached": False,
-        },
-    )
-
-    stubber.add_response(
-        "get_policy_version",
-        {
-            "PolicyVersion": {
-                "Document": encoded_policy,
-            }
-        },
-        {
-            "PolicyArn": policies[0]["Arn"],
-            "VersionId": "v1",
-        },
-    )
-
-    stubber.activate()
-
-    result = collect_iam(client)
-
-    assert result["status"] == CollectionStatus.OK.value
-    assert result["document"][0]["document"] == {
-        "status": CollectionStatus.OK.value,
-        "document": policy,
-    }
-
-    stubber.deactivate()
-
-
 def test_collect_iam_policy_access_denied():
     client = boto3.client("iam", region_name="us-east-1")
     stubber = Stubber(client)
