@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 FIXTURE = {
     "collection_window": None,
     "account_id": "157182991517",
@@ -746,3 +748,22 @@ IAM_SERVICE_WILDCARD_POLICY_FIXTURE = {
         ],
     },
 }
+
+ACL_UNREADABLE_FIXTURE = deepcopy(ALLUSERS_FIXTURE)
+ACL_UNREADABLE_FIXTURE["s3_buckets"]["document"][0]["acl"] = {
+    "status": "access_denied",
+    "document": None,
+}
+
+
+ACL_PARSE_ERROR_FIXTURE = deepcopy(ALLUSERS_FIXTURE)
+ACL_PARSE_ERROR_FIXTURE["s3_buckets"]["document"][0]["acl"] = {
+    "status": "parse_error",
+    "document": None,
+}
+
+
+ACL_READ_ACP_FIXTURE = deepcopy(ALLUSERS_FIXTURE)
+ACL_READ_ACP_FIXTURE["s3_buckets"]["document"][0]["acl"]["document"]["Grants"][0][
+    "Permission"
+] = "READ_ACP"

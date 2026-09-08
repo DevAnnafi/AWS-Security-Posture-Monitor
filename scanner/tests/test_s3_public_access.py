@@ -7,9 +7,18 @@
 """
 
 from scanner.checks.s3_public_access import S3PublicAccess
-from scanner.fixtures import FIXTURE, CLEAN_ENVIRONMENT_FIXTURE, S3_NOTREADABLE_FIXTURE, S3_EVERYTHING_FIXTURE, S3_ACCOUNT_BPA_NOTREADABLE_FIXTURE
 from scanner.registry import CheckStatus
 from scanner.models import Severity
+from scanner.fixtures import (
+    FIXTURE,
+    CLEAN_ENVIRONMENT_FIXTURE,
+    S3_NOTREADABLE_FIXTURE,
+    S3_EVERYTHING_FIXTURE,
+    S3_ACCOUNT_BPA_NOTREADABLE_FIXTURE,
+    ACL_UNREADABLE_FIXTURE,
+    ACL_PARSE_ERROR_FIXTURE,
+    ACL_READ_ACP_FIXTURE,
+)
 
 def test_s3_public_access():
     check = S3PublicAccess()
@@ -65,3 +74,33 @@ def test_account_bpa_access_denied_cannot_evaluate():
     assert result.findings == []
     assert result.unevaluated == []
     assert result.error == "access_denied"
+
+def test_acl_access_denied_is_partial():
+    result = S3PublicAccess().evaluate(ACL_UNREADABLE_FIXTURE)
+
+    assert result.status == CheckStatus.PARTIAL
+    assert result.findings == []
+
+    assert len(result.unevaluated) == 1
+    assert result.unevaluated[0]["value"] == "acl"
+
+    assert result.error is None
+
+
+def test_acl_parse_error_is_partial():
+    result = S3PublicAccess().evaluate(ACL_PARSE_ERROR_FIXTURE)
+
+    assert result.status == CheckStatus.PARTIAL
+    assert result.findings == []
+
+    assert len(result.unevaluated) == 1
+    assert result.unevaluated[0]["value"] == "acl"
+
+    assert result.error is None
+
+def test_acl_read_acp_not_public():
+    result = S3PublicAccess().evaluate(ACL_READ_ACP_FIXTURE)
+
+    assert result.status == CheckStatus.EVALUATED
+    assert result.findings == []
+    assert result.unevaluated == []
