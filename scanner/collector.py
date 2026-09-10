@@ -11,6 +11,38 @@ class CollectionStatus(Enum):
     ACCESS_DENIED = "access_denied"
     PARTIAL = "partial"  
     PARSE_ERROR = "parse_error"
+    NOT_FOUND = "not_found"
+
+def collect_security_group(ec2_client, group_id):
+    try:
+        response = ec2_client.describe_security_groups(
+            GroupIds=[group_id]
+        )
+
+        group = dict(response["SecurityGroups"][0])
+        group["region"] = ec2_client.meta.region_name
+
+        return {
+            "status": CollectionStatus.OK.value,
+            "document": group,
+        }
+
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+
+        if error_code == "InvalidGroup.NotFound":
+            return {
+                "status": CollectionStatus.NOT_FOUND.value,
+                "document": None,
+            }
+
+        if error_code == "UnauthorizedOperation":
+            return {
+                "status": CollectionStatus.ACCESS_DENIED.value,
+                "document": None,
+            }
+
+        raise
 
 
 def collect_bucket(s3_client, bucket_name):
