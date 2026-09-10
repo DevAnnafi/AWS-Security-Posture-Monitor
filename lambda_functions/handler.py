@@ -8,7 +8,8 @@ from lambda_functions.remediation import remediate_public_sg_ingress
 from scanner.collector import (
     collect_bucket,
     collect_account_bpa,
-    CollectionStatus
+    CollectionStatus,
+    collect_security_group,
 )
 from scanner.registry import CheckStatus
 
@@ -39,6 +40,39 @@ def collect_bucket_snapshot(
             "document": [bucket],
         },
         "account_bpa": account_bpa,
+    }
+
+
+def collect_security_group_snapshot(
+    ec2_client,
+    account_id,
+    group_id,
+):
+    result = collect_security_group(
+        ec2_client,
+        group_id,
+    )
+
+    if result["status"] == CollectionStatus.NOT_FOUND.value:
+        return None
+
+    region = ec2_client.meta.region_name
+
+    return {
+        "account_id": account_id,
+        "regions_covered": [
+            region,
+        ],
+        "security_groups": {
+            "status": result["status"],
+            "document": [
+                {
+                    "region": region,
+                    "status": result["status"],
+                    "document": [result["document"]],
+                }
+            ],
+        },
     }
 
 
@@ -153,16 +187,73 @@ def lambda_handler(event, context):
         )
 
         # -----------------------------------------------------
-        # Security Group re-scan will go here.
+        # Re-scan this security group.
         # -----------------------------------------------------
-        print(
-            f"Security Group {group_id} detected. "
-            "Re-scan not yet implemented."
+        snapshot = collect_security_group_snapshot(
+            ec2_client,
+            account_id,
+            group_id,
+        )
+
+        # -----------------------------------------------------
+        # Group was deleted between the event and invocation.
+        # -----------------------------------------------------
+        if snapshot is None:
+            print(
+                f"Security Group {group_id} no longer exists. "
+                "No remediation needed."
+            )
+
+            return {
+                "status": "not_found",
+                "resource": group_id,
+            }
+
+        # -----------------------------------------------------
+        # Evaluate the current state.
+        # -----------------------------------------------------
+        check_result = SecurityGroupAdminPorts().evaluate(snapshot)
+
+        print(f"Security Group check result: {check_result}")
+
+        # -----------------------------------------------------
+        # Only remediate if the group is still violating.
+        # -----------------------------------------------------
+        if check_result.status != CheckStatus.VIOLATIONS:
+            print(
+                f"Security Group {group_id} is not currently "
+                "violating. No remediation needed."
+            )
+
+            return {
+                "status": "no_remediation",
+                "resource": group_id,
+                "check_status": check_result.status.value,
+                "finding_count": len(check_result.findings),
+            }
+
+        # -----------------------------------------------------
+        # Get the current IpPermissions from the snapshot.
+        # -----------------------------------------------------
+        group = snapshot["security_groups"]["document"][0]["document"][0]
+
+        ip_permissions = group["IpPermissions"]
+
+        # -----------------------------------------------------
+        # Remediate the confirmed finding.
+        # -----------------------------------------------------
+        remediation_result = remediate_public_sg_ingress(
+            ec2_client,
+            group_id,
+            ip_permissions,
         )
 
         return {
-            "status": "not_implemented",
+            "status": "remediated",
             "resource": group_id,
+            "check_status": check_result.status.value,
+            "finding_count": len(check_result.findings),
+            "remediation": remediation_result,
         }
 
     # ---------------------------------------------------------
@@ -174,3 +265,4 @@ def lambda_handler(event, context):
         "status": "ignored",
         "eventName": event_name,
     }
+
