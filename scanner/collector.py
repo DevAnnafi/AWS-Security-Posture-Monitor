@@ -30,6 +30,7 @@ def collect_security_group(ec2_client, group_id):
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
 
+        # A malformed ID means no such group exists and none ever will, so the outcome is identical to not-found.
         if error_code in {
             "InvalidGroup.NotFound",
             "InvalidGroupId.Malformed",
