@@ -30,7 +30,10 @@ def collect_security_group(ec2_client, group_id):
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
 
-        if error_code == "InvalidGroup.NotFound":
+        if error_code in {
+            "InvalidGroup.NotFound",
+            "InvalidGroupId.Malformed",
+        }:
             return {
                 "status": CollectionStatus.NOT_FOUND.value,
                 "document": None,
