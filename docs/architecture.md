@@ -242,3 +242,9 @@ Under collect-then-evaluate the check never observes the failure directly. The `
 For essentially every misconfiguration this scanner produces, key CVSS metrics collapse: Attack Vector is Network, Privileges Required is None, and User Interaction is None. There often isn't even an exploit or meaningful Attack Complexity to model—the system is simply behaving as configured. So CVSS can produce a score, but it doesn't discriminate well between configuration findings.
 
 The tradeoff is that CVSS gives us portability and standardization: a security team already understands what a 9.1 means, and platforms like Security Hub can consume it. Our custom model requires people to learn our prioritization ladder. I chose the custom approach because, for this specific problem, better discrimination is more valuable than a standardized number.
+
+### Given Prowler exists and is free, what's the argument for this project existing at all?
+
+Prowler’s IAM admin checks can miss policies whose effective permissions are contained in a custom policy document rather than identified by a managed-policy ARN. In the lab, Prowler missed `cspm-lab-full-access-test`, while the scanner detected it by evaluating the policy document.
+
+Prowler 3.11.3 is pinned because current Prowler releases failed to import under Python 3.14, so the comparison ran in a 3.12 virtual environment where pip resolved 3.11.3. The version is pinned in the comparison environment so the result remains reproducible.

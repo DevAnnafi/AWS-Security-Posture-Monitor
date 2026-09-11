@@ -466,8 +466,8 @@ This repository provisions **intentionally insecure AWS infrastructure**. Read b
 * [x] Re-scan before remediation (Unit 8)
 * [x] Threshold-based auto-remediation for supported S3 and security-group findings (Unit 8)
 * [x] SNS remediation notifications (Unit 8)
-* [ ] Remaining three checks
-* [ ] Prowler / ScoutSuite coverage comparison (Unit 9)
+* [x] Remaining three checks
+* [x] Prowler / ScoutSuite coverage comparison (Unit 9)
 * [ ] FastAPI findings API + Next.js dashboard (Unit 10)
 * [ ] Documentation and portfolio packaging (Unit 11)
 * [ ] **Stretch:** multi-account via AWS Organizations, Security Hub (ASFF) export
