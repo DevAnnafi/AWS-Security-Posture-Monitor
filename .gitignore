@@ -32,11 +32,13 @@ dist/
 credentials
 *.pem
 *.key
+.venv-prowler/
 
 # Scan artifacts
 findings.json
 findings/
 *.log
+prowler-output/
 
 # OS
 .DS_Store
