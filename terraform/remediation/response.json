@@ -1,0 +1,1 @@
+{"status": "remediated", "resource": "sg-07dfce1d80df89537", "check_status": "violations", "finding_count": 1, "remediation": {"status": "ok", "revoked_rules": 1}, "notification": {"status": "ok", "message_id": "80f8ecda-24d6-5692-92b6-8fc7abc8a755"}}

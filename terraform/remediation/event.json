@@ -1,0 +1,18 @@
+{
+  "source": "aws.ec2",
+  "detail-type": "AWS API Call via CloudTrail",
+  "detail": {
+    "eventSource": "ec2.amazonaws.com",
+    "eventName": "AuthorizeSecurityGroupIngress",
+    "awsRegion": "us-east-1",
+    "eventTime": "2026-09-11T00:00:00Z",
+    "userIdentity": {
+      "type": "IAMUser",
+      "arn": "arn:aws:iam::339712764484:user/terraform-deploy",
+      "userName": "terraform-deploy"
+    },
+    "requestParameters": {
+      "groupId": "sg-07dfce1d80df89537"
+    }
+  }
+}
