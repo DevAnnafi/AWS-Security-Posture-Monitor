@@ -7,6 +7,8 @@
 crash.log
 override.tf
 .terraform.lock.hcl
+terraform/remediation/remediation_lambda.zip
+terraform/remediation/response.json
 
 # Python
 __pycache__/
