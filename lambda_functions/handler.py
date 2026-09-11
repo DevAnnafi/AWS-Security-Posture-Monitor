@@ -246,6 +246,10 @@ def lambda_handler(event, context):
             remediation_result=remediation_result,
         )
 
+        print(f"Remediation result: {remediation_result}")
+
+        print(f"Notification result: {notification_result}")
+
         # -----------------------------------------------------
         # Return accurate top-level status.
         # -----------------------------------------------------
@@ -378,6 +382,10 @@ def lambda_handler(event, context):
             remediation_result=remediation_result,
         )
 
+        print(f"Remediation result: {remediation_result}")
+
+        print(f"Notification result: {notification_result}")
+
         # -----------------------------------------------------
         # Return accurate top-level status.
         # -----------------------------------------------------
@@ -408,3 +416,4 @@ def lambda_handler(event, context):
         "status": "ignored",
         "eventName": event_name,
     }
+
