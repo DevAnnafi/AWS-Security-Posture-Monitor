@@ -38,7 +38,7 @@ These exclusions keep the project focused on detecting **configuration-level sec
 
 ## Severity Philosophy
 
-Severity is determined solely by the impact of the granted access: what an attacker can do with the exposedthe exposed configuration. The scanner uses three severity levels based on that capability, with the level assigned independently for each finding. See Decision 9 for the rationale and detailed methodology.
+Severity is determined solely by the impact of the granted access: what an attacker can do with the exposed configuration. The scanner uses three severity levels based on that capability, with the level assigned independently for each finding. See Decision 9 for the rationale and detailed methodology.
 
 ---
 
@@ -56,7 +56,7 @@ Checks therefore return a `CheckResult` carrying a status enum alongside any fin
 
 ### 2. Check metadata lives on the check class
 
-Each check is a subclass of an abstract `BaseCheck` and declares its CIS control ID, title, severity, remediability, and data dependencies as class attributes.
+Each check is a subclass of an abstract `BaseCheck` and declares its CIS control ID, title, remediability, and data dependencies as class attributes.
 
 The alternative was decorated functions with metadata passed as decorator arguments. Class attributes were chosen because the registry can be introspected without executing any check — which means the README control table, the coverage comparison in `docs/tool-comparison.md`, and the API's control filter can all be generated from the registry rather than maintained by hand. Metadata that is duplicated by hand drifts; metadata with one source does not.
 
@@ -129,13 +129,15 @@ S3 public-access findings use resource_sub_id to distinguish multiple findings p
 Severity is determined by the granted permission represented by the finding, not by the access mechanism or group name. The previous PublicExposure severity model was removed; S3PublicAccess no longer carries per-mechanism severities. Each Finding receives its severity from the granted permission when it is constructed.
 
 
-### 8. Single-Scope Snapshots and Deferred Multi-Region Support
+### 8. Deferred (and Realized) Multi-Region Support
 
-Decision: The snapshot currently represents a single collection scope. Multi-region collection will require a future change to the section wrapper so regional collection status can be represented explicitly.
+Decision: Initially, the snapshot represented a single collection scope, intentionally deferring any regional wrappers until multi-region collection was actually built. In Unit 6, this was implemented: the structure evolved so that sections like `security_groups` became wrappers containing per-region entries.
 
-Reasoning: A section-level status is correct for the current single-scope collector because the API operation is the unit of collection. However, one status cannot represent independent success/failure across multiple regions. We will not prematurely introduce a regional wrapper before multi-region collection exists.
+Reasoning: Early on, a single section-level status was correct because a single API operation was the unit of collection. However, one status could not represent independent success and failure across multiple AWS regions. Rather than prematurely engineering a multi-region abstraction before it was needed, the structure was kept flat.
 
-Cost: When multi-region collection is introduced, the snapshot section wrapper will need to change, and consumers of that section may require updates. This is an intentional known migration cost.
+When multi-region collection was introduced, the model shifted: each regional entry now holds its own status and document. The outer wrapper aggregates these regional results — reporting ok if every region succeeded, access_denied if none did, and partial if mixed. The consuming checks were updated to match. For example, `SecurityGroupAdminPorts` now iterates through the regions and explicitly records any denied regions as target_type: "region" entries in the `unevaluated` list.
+
+Cost: The predicted migration cost came due as written. The security_groups wrapper changed, `SecurityGroupAdminPorts` changed with it, and the test fixtures carrying that section were updated. Deferring the abstraction avoided building it against a collector that did not yet exist.
 
 ### 9. The impact of the granted access dictates each finding’s severity.
 
@@ -151,11 +153,61 @@ Why LOW is unused: Every finding currently emitted by this scanner represents an
 
 Limitation: The severity levels are relative to the findings the scanner detects today, rather than an absolute ranking of all possible security findings. The current three-level model is calibrated around public-exposure findings and their granted capability. As additional checks are added, particularly IAM-specific checks, new findings may introduce capabilities that require the severity ladder or its ordering to be revisited. The model should therefore be treated as an explicit policy for the current detection surface, not as a permanently fixed severity hierarchy.
 
+### 10. Remediation handlers are separate from checks and keyed by control ID
+
+**Decision:** Remediation logic lives separately from detection checks and is registered by CIS control ID. A check determines whether a configuration violates a control; a remediation handler applies the corrective action in the Lambda execution context.
+
+The execution contexts are deliberately different. Checks are pure functions over a read-only snapshot and never call boto3. Remediation runs inside Lambda in response to an EventBridge event and requires write permissions. Keeping the two concerns separate prevents write-capable remediation code from becoming part of the detection path and keeps checks independently testable.
+
+The alternative was a `remediate()` method on each `BaseCheck` subclass. That would put detection and mutation in the same abstraction even though they have different inputs, permissions, and execution environments. A separate registry also makes the control ID the stable boundary between a finding and the action that can remediate it.
+
+**Cost:** The expected deployment-size benefit did not materialize. The Lambda ships the whole scanner package anyway, so separating remediation from checks does not reduce the deployed package by excluding unused detection code. The separation is therefore for execution-context and design-boundary reasons, not package-size optimization.
+
+---
+
+### 11. The remediation Lambda re-scans the resource instead of trusting the event payload
+
+**Decision:** When a configuration-change event triggers the remediation Lambda, the Lambda re-reads the affected resource from AWS and runs the same detection implementation before taking corrective action. The event identifies what changed; it is not treated as proof that the resource is currently in violation.
+
+This keeps detection logic in one place. The same check that identifies a misconfiguration during a normal scan determines whether the resource still violates the control when remediation runs. The Lambda does not maintain a second, event-specific interpretation of the security condition.
+
+Re-scanning also handles the case where the resource changed again between the original event and Lambda execution. The remediation decision is based on the current AWS state rather than on potentially stale event data.
+
+**Cost:** Every remediation invocation makes additional AWS API calls to read the resource and evaluate the finding. The Lambda therefore needs read permissions in addition to the write permissions required to fix the configuration. This is an intentional trade-off for using one detection implementation and acting on current state rather than stale event data.
+
+---
+
+### 12. Auto-remediation is threshold-based and limited to exact administrative ports
+
+**Decision:** Auto-remediation applies only when the detected exposure crosses a narrow, explicit threshold. For security groups, the automatic remediation condition is an exact administrative-port match: TCP port 22 or 3389 exposed to `0.0.0.0/0`. Broad port ranges are reported as findings but are not automatically modified.
+
+`IpProtocol: "-1"` is never automatically remediated. AWS omits the port fields for this rule type because it represents unrestricted protocol and port access. Although it clearly represents a serious exposure, automatically changing an unrestricted rule requires making a broader assumption about the intended network configuration.
+
+The same principle applies to ranges. A rule covering `0-65535` includes ports 22 and 3389, but it may have been deliberately created for an application or network design that the scanner cannot infer. The scanner therefore alerts on broad ranges rather than assuming that deleting or narrowing the rule is safe.
+
+The threshold answers the operational question: **when would auto-remediation cause an outage?** It could cause an outage when the scanner changes a rule that was intentionally required by an application or administrator. Auto-remediation is therefore restricted to the cases where the intended corrective action is sufficiently specific to justify an automatic change.
+
+**Cost:** Some genuinely dangerous configurations will remain for manual remediation. A broad range or unrestricted `IpProtocol: "-1"` rule can be more permissive than an exact port-22 rule, but the system deliberately accepts an alert instead of taking an action that could disrupt legitimate traffic.
+
+---
+
+### 13. CIS 2.14 is detect-only
+
+**Decision:** CIS 2.14 detects attached IAM policies granting full `*:*` administrative privileges but does not automatically detach or modify the policy.
+
+The finding is clear enough to detect, but the safe corrective action is not. An attached administrative policy may be intentional and may support a legitimate workload, deployment system, or administrator. Automatically detaching it could remove permissions that a real system requires.
+
+This follows the same remediation boundary used elsewhere: auto-remediation requires confidence that the corrective action is safe, not merely confidence that the configuration violates the benchmark. For 2.14, the scanner can establish the violation but cannot establish that detaching the policy is operationally safe.
+
+A remediation that causes an outage is worse than leaving the finding in place for an operator to review. The control is therefore intentionally **detect-only** until the project has enough context to distinguish an unwanted administrative attachment from a legitimate one.
+
+**Cost:** IAM findings require manual remediation. The system may continue to report an attached `*:*` policy until an operator determines whether removing it is safe.
+
+
 ### Open questions
 
 ACL and account-level Block Public Access are already represented in the bucket entries. They use the same per-value status wrapper as policy, so each read can fail independently. Account-level BPA is also represented in the collected snapshot rather than being absent from the S3 bucket data model.
 
-A question deferred from decision 2: BaseCheck.remediable records whether a remediation handler exists, but not where it lives. The candidates are a remediate() method on the check class, or a separate handler registry keyed by control ID. The execution contexts differ sharply — checks are pure functions over a snapshot, while remediation runs inside Lambda with write credentials in response to an EventBridge event — which argues for separation, but the decision is not yet made.
 
 ---
 
