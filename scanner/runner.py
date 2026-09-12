@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from uuid import UUID, uuid4
 
 from scanner.registry import CheckResult, CHECK_REGISTRY, CheckStatus
 import scanner.checks
@@ -15,6 +16,7 @@ class ScanStatus(str, Enum):
 @dataclass
 class ScanResults:
     account_id: str
+    scan_id: UUID
     regions_covered: list[str]
     status: ScanStatus
     results: list[CheckResult]
@@ -25,6 +27,7 @@ class ScanResults:
 
 
 def run_scan(snapshot):
+    scan_id = uuid4()
     scanned_at = datetime.now(timezone.utc)
     results = []
 
@@ -56,6 +59,7 @@ def run_scan(snapshot):
         results=results,
         scanned_at=scanned_at,
         ended_at=ended_at,
+        scan_id=scan_id
     )
 
 
