@@ -203,6 +203,12 @@ A remediation that causes an outage is worse than leaving the finding in place f
 
 **Cost:** IAM findings require manual remediation. The system may continue to report an attached `*:*` policy until an operator determines whether removing it is safe.
 
+### 14. The Choice Of A Database
+
+I chose Postgres over SQLite because the application is intended to resemble a production deployment, where scans may eventually run concurrently and multiple workers may write findings at the same time. Postgres also provides JSONB, allowing the evidence field to remain structured while still being queryable.
+
+The rejected alternative was SQLite. SQLite would have kept the test suite dependency-free and eliminated the need for Docker Compose and a database service in CI, making local development simpler. I accepted those additional costs because Postgres better matches the expected production environment and provides stronger support for concurrent writes and structured evidence queries.
+
 
 ### Open questions
 
