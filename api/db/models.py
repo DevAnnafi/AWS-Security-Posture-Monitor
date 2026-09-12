@@ -11,7 +11,7 @@ class Base(DeclarativeBase):
     pass
 
 class Finding(Base):
-    __tablename__ = "findings"
+    __tablename__ = "finding"
 
     scan_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -71,4 +71,32 @@ class Finding(Base):
     detected_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
+    )
+
+class FindingState(Base):
+    __tablename__ = "finding_state" 
+
+    finding_id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+    )
+
+    suppressed_by: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+    )
+
+    justification: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+    )
+
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
