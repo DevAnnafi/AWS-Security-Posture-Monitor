@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import Any
 from uuid import UUID
+from enum import Enum
 
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -10,8 +12,14 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 class Base(DeclarativeBase):
     pass
 
+class FindingStatus(str, Enum):
+    NEW = "new"
+    ACKNOWLEDGED = "acknowledged"
+    REMEDIATED = "remediated"
+    SUPPRESSED = "suppressed"
+
 class Finding(Base):
-    __tablename__ = "finding"
+    __tablename__ = "findings"
 
     scan_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -74,15 +82,15 @@ class Finding(Base):
     )
 
 class FindingState(Base):
-    __tablename__ = "finding_state" 
+    __tablename__ = "finding_state"
 
     finding_id: Mapped[str] = mapped_column(
         String,
         primary_key=True,
     )
 
-    status: Mapped[str] = mapped_column(
-        String,
+    status: Mapped[FindingStatus] = mapped_column(
+        SQLEnum(FindingStatus),
         nullable=False,
     )
 
