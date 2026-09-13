@@ -4,11 +4,12 @@ from uuid import UUID
 from enum import Enum
 
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, String, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from scanner.runner import ScanStatus
+from scanner.collector import CollectionStatus
 
 
 class Base(DeclarativeBase):
@@ -19,6 +20,11 @@ class FindingStatus(str, Enum):
     ACKNOWLEDGED = "acknowledged"
     REMEDIATED = "remediated"
     SUPPRESSED = "suppressed"
+
+class TargetType(str, Enum):
+    BUCKET = "bucket"
+    REGION = "region"
+    POLICY = "policy"
 
 class Finding(Base):
     __tablename__ = "findings"
@@ -144,3 +150,43 @@ class Scan(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+
+class UnEvalTarget(Base):
+    __tablename__ = "uneval_targets"
+
+    id: Mapped[int] = mapped_column(
+        Integer, 
+        primary_key=True, 
+        autoincrement=True
+    )
+
+    scan_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("scans.scan_id"),
+        nullable=False,     
+    )
+
+    control_id: Mapped[str] = mapped_column(
+        String,
+        nullable=False
+    )
+
+    target_type: Mapped[str] = mapped_column(
+        String, nullable=False
+    )
+
+    target: Mapped[str] = mapped_column(
+        String,
+        nullable=False
+    )
+
+    value: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
+    )
+
+    reason: Mapped[CollectionStatus] = mapped_column(
+        SQLEnum(CollectionStatus),
+        nullable=False
+    )
+
