@@ -31,6 +31,7 @@ class Finding(Base):
 
     scan_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
+        ForeignKey("scans.scan_id"),
         primary_key=True,
     )
 
