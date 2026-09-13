@@ -8,6 +8,8 @@ from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from scanner.runner import ScanStatus
+
 
 class Base(DeclarativeBase):
     pass
@@ -105,6 +107,40 @@ class FindingState(Base):
     )
 
     expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+class Scan(Base):
+    __tablename__ = "scans"
+
+    scan_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String,
+        nullable=False
+    )
+
+    status: Mapped[ScanStatus] = mapped_column(
+        SQLEnum(ScanStatus),
+        nullable=False
+    )
+
+    regions_covered: Mapped[list[str]] = mapped_column(
+        JSONB, 
+        nullable=False, 
+        default=list
+    )
+
+    scanned_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+    ended_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
