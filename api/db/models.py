@@ -187,7 +187,7 @@ class UnEvalTarget(Base):
     )
 
     reason: Mapped[CollectionStatus] = mapped_column(
-        SQLEnum(CollectionStatus),
+        SQLEnum(CollectionStatus, values_callable=lambda e: [m.value for m in e]),
         nullable=False
     )
 
