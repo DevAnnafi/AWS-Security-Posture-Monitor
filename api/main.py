@@ -22,6 +22,9 @@ def health():
 @app.get("/findings", response_model=FindingsResponse)
 def list_findings(
     scan_id: UUID | None = None,
+    severity: str | None = None,
+    region: str | None = None,
+    control_id: str | None = None,
     session: Session = Depends(get_session),
 ):
     if scan_id is None:
@@ -35,6 +38,16 @@ def list_findings(
         raise HTTPException(status_code=404, detail="No scans found")
 
     stmt = select(FindingRow).where(FindingRow.scan_id == scan.scan_id)
+
+    if severity is not None:
+        stmt = stmt.where(FindingRow.severity == severity)
+
+    if region is not None:
+        stmt = stmt.where(FindingRow.region == region)
+
+    if control_id is not None:
+        stmt = stmt.where(FindingRow.control_id == control_id)
+
     findings = list(session.scalars(stmt))
 
     return FindingsResponse(scan=scan, findings=findings)
