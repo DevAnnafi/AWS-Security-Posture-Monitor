@@ -25,6 +25,7 @@ class FindingSummarySchema(BaseSchema):
     account_id: str
     remediable: bool
     detected_at: datetime
+    status: FindingStatus
     resource_sub_id: str | None = None
     region: str | None = None
 
@@ -39,6 +40,7 @@ class FindingStateSchema(BaseSchema):
     suppressed_by: str | None = None
     justification: str | None = None
     expires_at: datetime | None = None
+
 
 class FindingStateUpdateSchema(BaseModel):
     status: FindingStatus | None = None
@@ -59,13 +61,16 @@ class FindingStateUpdateSchema(BaseModel):
             raise ValueError(
                 "Suppression requires suppressed_by, justification, and expires_at"
             )
+
         return self
+
 
 class SummarySchema(BaseSchema):
     scan_id: UUID
     scanned_at: datetime
     by_severity: dict[str, int]
     by_control: dict[str, int]
+    suppressed_count: int
 
 
 class ScanSchema(BaseSchema):

@@ -1,21 +1,23 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy import select, func
+from fastapi import Depends, FastAPI, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from api.db.session import SessionLocal
 from api.db.models import (
-    Scan,
     Finding as FindingRow,
     FindingState,
     FindingStatus,
+    Scan,
 )
+from api.db.session import SessionLocal
 from api.schemas import (
-    FindingsResponse,
     FindingDetailSchema,
     FindingStateSchema,
     FindingStateUpdateSchema,
+    FindingSummarySchema,
+    FindingsResponse,
     SummarySchema,
 )
 
@@ -30,17 +32,47 @@ def get_session():
         yield session
 
 
+def is_suppression_active(
+    state: FindingState | None,
+) -> bool:
+    return (
+        state is not None
+        and state.status is FindingStatus.SUPPRESSED
+        and state.expires_at is not None
+        and state.expires_at > datetime.now(timezone.utc)
+    )
+
+
+def get_effective_status(
+    state: FindingState | None,
+) -> FindingStatus:
+    if is_suppression_active(state):
+        return FindingStatus.SUPPRESSED
+
+    if state is None:
+        return FindingStatus.NEW
+
+    if state.status is FindingStatus.SUPPRESSED:
+        return FindingStatus.NEW
+
+    return state.status
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
-@app.get("/findings", response_model=FindingsResponse)
+@app.get(
+    "/findings",
+    response_model=FindingsResponse,
+)
 def list_findings(
     scan_id: UUID | None = None,
     severity: str | None = None,
     region: str | None = None,
     control_id: str | None = None,
+    include_suppressed: bool = True,
     session: Session = Depends(get_session),
 ):
     if scan_id is None:
@@ -58,8 +90,15 @@ def list_findings(
             detail="No scans found",
         )
 
-    stmt = select(FindingRow).where(
-        FindingRow.scan_id == scan.scan_id
+    stmt = (
+        select(FindingRow, FindingState)
+        .outerjoin(
+            FindingState,
+            FindingRow.finding_id == FindingState.finding_id,
+        )
+        .where(
+            FindingRow.scan_id == scan.scan_id
+        )
     )
 
     if severity is not None:
@@ -77,7 +116,35 @@ def list_findings(
             FindingRow.control_id == control_id
         )
 
-    findings = list(session.scalars(stmt))
+    rows = session.execute(stmt).all()
+
+    findings: list[FindingSummarySchema] = []
+
+    for finding, state in rows:
+        status = get_effective_status(state)
+
+        if (
+            not include_suppressed
+            and status is FindingStatus.SUPPRESSED
+        ):
+            continue
+
+        findings.append(
+            FindingSummarySchema(
+                scan_id=finding.scan_id,
+                finding_id=finding.finding_id,
+                control_id=finding.control_id,
+                title=finding.title,
+                severity=finding.severity,
+                resource_id=finding.resource_id,
+                account_id=finding.account_id,
+                remediable=finding.remediable,
+                detected_at=finding.detected_at,
+                status=status,
+                resource_sub_id=finding.resource_sub_id,
+                region=finding.region,
+            )
+        )
 
     return FindingsResponse(
         scan=scan,
@@ -94,7 +161,11 @@ def get_finding(
     session: Session = Depends(get_session),
 ):
     stmt = (
-        select(FindingRow)
+        select(FindingRow, FindingState)
+        .outerjoin(
+            FindingState,
+            FindingRow.finding_id == FindingState.finding_id,
+        )
         .join(
             Scan,
             FindingRow.scan_id == Scan.scan_id,
@@ -108,15 +179,31 @@ def get_finding(
         .limit(1)
     )
 
-    finding = session.scalars(stmt).first()
+    row = session.execute(stmt).first()
 
-    if finding is None:
+    if row is None:
         raise HTTPException(
             status_code=404,
             detail="Finding not found",
         )
 
-    return finding
+    finding, state = row
+
+    return FindingDetailSchema(
+        scan_id=finding.scan_id,
+        finding_id=finding.finding_id,
+        control_id=finding.control_id,
+        title=finding.title,
+        severity=finding.severity,
+        resource_id=finding.resource_id,
+        account_id=finding.account_id,
+        remediable=finding.remediable,
+        detected_at=finding.detected_at,
+        status=get_effective_status(state),
+        resource_sub_id=finding.resource_sub_id,
+        region=finding.region,
+        evidence=finding.evidence,
+    )
 
 
 @app.get(
@@ -138,43 +225,44 @@ def get_summary(
             detail="No scans found",
         )
 
-    severity_rows = session.execute(
-        select(
-            FindingRow.severity,
-            func.count(FindingRow.finding_id),
+    stmt = (
+        select(FindingRow, FindingState)
+        .outerjoin(
+            FindingState,
+            FindingRow.finding_id == FindingState.finding_id,
         )
         .where(
             FindingRow.scan_id == latest_scan.scan_id
         )
-        .group_by(
-            FindingRow.severity
-        )
-    ).all()
+    )
 
-    control_rows = session.execute(
-        select(
-            FindingRow.control_id,
-            func.count(FindingRow.finding_id),
+    rows = session.execute(stmt).all()
+
+    by_severity: dict[str, int] = {}
+    by_control: dict[str, int] = {}
+    suppressed_count = 0
+
+    for finding, state in rows:
+        status = get_effective_status(state)
+
+        if status is FindingStatus.SUPPRESSED:
+            suppressed_count += 1
+            continue
+
+        by_severity[finding.severity] = (
+            by_severity.get(finding.severity, 0) + 1
         )
-        .where(
-            FindingRow.scan_id == latest_scan.scan_id
+
+        by_control[finding.control_id] = (
+            by_control.get(finding.control_id, 0) + 1
         )
-        .group_by(
-            FindingRow.control_id
-        )
-    ).all()
 
     return SummarySchema(
         scan_id=latest_scan.scan_id,
         scanned_at=latest_scan.scanned_at,
-        by_severity={
-            severity: count
-            for severity, count in severity_rows
-        },
-        by_control={
-            control_id: count
-            for control_id, count in control_rows
-        },
+        by_severity=by_severity,
+        by_control=by_control,
+        suppressed_count=suppressed_count,
     )
 
 
@@ -201,83 +289,26 @@ def update_finding_state(
             detail="Finding not found",
         )
 
-    provided = update.model_dump(exclude_unset=True)
+    provided = update.model_dump(
+        exclude_unset=True
+    )
 
-    current_state = session.get(
+    state = session.get(
         FindingState,
         finding_id,
     )
 
-    current_status = (
-        provided.get("status")
-        if "status" in provided
-        else (
-            current_state.status
-            if current_state is not None
-            else FindingStatus.NEW
-        )
-    )
-
-    if current_status == FindingStatus.SUPPRESSED:
-        suppressed_by = (
-            provided.get("suppressed_by")
-            if "suppressed_by" in provided
-            else (
-                current_state.suppressed_by
-                if current_state is not None
-                else None
-            )
-        )
-
-        justification = (
-            provided.get("justification")
-            if "justification" in provided
-            else (
-                current_state.justification
-                if current_state is not None
-                else None
-            )
-        )
-
-        expires_at = (
-            provided.get("expires_at")
-            if "expires_at" in provided
-            else (
-                current_state.expires_at
-                if current_state is not None
-                else None
-            )
-        )
-
-        if not suppressed_by:
-            raise HTTPException(
-                status_code=400,
-                detail="Suppression requires suppressed_by",
-            )
-
-        if not justification:
-            raise HTTPException(
-                status_code=400,
-                detail="Suppression requires a justification",
-            )
-
-        if expires_at is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Suppression requires an expiry",
-            )
-
-    if current_state is None:
-        current_state = FindingState(
+    if state is None:
+        state = FindingState(
             finding_id=finding_id,
-            status=current_status,
+            status=FindingStatus.NEW,
         )
-        session.add(current_state)
+        session.add(state)
 
     for field, value in provided.items():
-        setattr(current_state, field, value)
+        setattr(state, field, value)
 
     session.commit()
-    session.refresh(current_state)
+    session.refresh(state)
 
-    return current_state
+    return state
