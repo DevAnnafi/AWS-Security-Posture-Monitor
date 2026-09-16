@@ -61,6 +61,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r scanner/requirements.txt
+          pip install -r api/requirements.txt
 
       - name: Create database tables
         run: python -m api.db.init
@@ -79,3 +80,5 @@ jobs:
           POSTGRES_DB: security_db
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5433
+
+      
