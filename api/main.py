@@ -2,8 +2,10 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from api.schemas import ScanSchema
 
 from api.db.models import (
     Finding as FindingRow,
@@ -21,11 +23,16 @@ from api.schemas import (
     SummarySchema,
 )
 
-
 app = FastAPI(
     title="AWS Security Posture Monitor"
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def get_session():
     with SessionLocal() as session:
@@ -312,3 +319,11 @@ def update_finding_state(
     session.refresh(state)
 
     return state
+
+@app.get("/scans", response_model=list[ScanSchema])
+def list_scans(
+    limit: int = 50,
+    session: Session = Depends(get_session),
+):
+    stmt = select(Scan).order_by(Scan.scanned_at.desc()).limit(limit)
+    return list(session.scalars(stmt))

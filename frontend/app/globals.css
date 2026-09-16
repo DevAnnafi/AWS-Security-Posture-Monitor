@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+:root {
+  /* Surface and ink */
+  --paper: #fbfbf9;
+  --paper-sunk: #f3f3f0;
+  --ink: #16191d;
+  --ink-soft: #5c6169;
+  --ink-faint: #8f949b;
+  --rule: #dfe1dc;
+
+  /* Severity: one hue, darkening with severity. */
+  --sev-critical: #23255c;
+  --sev-high: #4a4d9e;
+  --sev-medium: #8b8ed2;
+  --sev-low: #c3c5e6;
+
+  /* Reserved for uncertainty only: incomplete scans, unevaluated targets. */
+  --unknown: #a8801f;
+  --unknown-wash: #f7f0dc;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-sunk: var(--paper-sunk);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-unknown: var(--unknown);
+  --color-unknown-wash: var(--unknown-wash);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14161a;
+    --paper-sunk: #1b1e23;
+    --ink: #eceef0;
+    --ink-soft: #a4a9b1;
+    --ink-faint: #6f757d;
+    --rule: #2a2e35;
+
+    --sev-critical: #9c9ef0;
+    --sev-high: #7477cc;
+    --sev-medium: #4e5192;
+    --sev-low: #34375e;
+
+    --unknown: #d4a943;
+    --unknown-wash: #2a2415;
+  }
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-plex-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Severity is structural: a rule at the leading edge, not a coloured badge. */
+.sev-rule {
+  border-inline-start-width: 3px;
+  border-inline-start-style: solid;
+}
+
+.sev-CRITICAL {
+  border-inline-start-color: var(--sev-critical);
+}
+.sev-HIGH {
+  border-inline-start-color: var(--sev-high);
+}
+.sev-MEDIUM {
+  border-inline-start-color: var(--sev-medium);
+}
+.sev-LOW {
+  border-inline-start-color: var(--sev-low);
+}
+
+.sev-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  display: inline-block;
+}
+
+.sev-dot-CRITICAL {
+  background: var(--sev-critical);
+}
+.sev-dot-HIGH {
+  background: var(--sev-high);
+}
+.sev-dot-MEDIUM {
+  background: var(--sev-medium);
+}
+.sev-dot-LOW {
+  background: var(--sev-low);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

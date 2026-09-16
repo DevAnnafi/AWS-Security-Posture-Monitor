@@ -3,11 +3,17 @@
 ## Threat Model
 
 | Misconfiguration | STRIDE category | Attack narrative | CIS control |
+
 | :--- | :--- | :--- | :--- |
+
 | Public S3 bucket | Information Disclosure | An attacker can read, steal, modify, or delete data and use a public Amazon S3 bucket to host malware if the permissions allow it. | 3.1.4 |
+
 | SSH open to 0.0.0.0/0 | Elevation of Privilege | An attacker can brute force the SSH daemon, create a shell on the instance and steal that user's credentials. | 6.3 |
+
 | Policies that grant full `*:*` admin attached directly to users | Elevation of Privilege | A leaked credential gives an attacker full administrative access to the account. One compromised credential can therefore become control of the entire account. | 2.14 |
+
 | Disabled CloudTrail or Config | Repudiation | An attacker can operate inside a cloud environment with complete invisibility, destroying accountability and blocking forensic investigations. | 4.1 |
+
 | IAM user without MFA or access keys unrotated 90+ days | Spoofing and Information Disclosure | Without MFA, a stolen credential is enough for an attacker to act as the IAM user. If the access key is never rotated, the stolen key remains usable. | 2.10, 2.12 |
 
 ## CIS Control References
@@ -15,12 +21,19 @@
 The following controls are from the **CIS Amazon Web Services Foundations Benchmark v7.0.0**. All six are Level 1 recommendations; 2.10, 2.12, 2.14, 3.1.4, and 6.3 are Automated, while 4.1 is Manual.
 
 | Control | CIS recommendation | Profile | Assessment |
+
 | :--- | :--- | :--- | :--- |
+
 | 2.10 | Ensure multi-factor authentication (MFA) is enabled for all IAM users that have a console password | Level 1 | Automated |
+
 | 2.12 | Ensure access keys are rotated every 90 days or less | Level 1 | Automated |
+
 | 2.14 | Ensure IAM policies that allow full "*:*" administrative privileges are not attached | Level 1 | Automated |
+
 | 3.1.4 | Ensure that S3 is configured with 'Block Public Access' enabled | Level 1 | Automated |
+
 | 4.1 | Ensure CloudTrail is enabled in all regions | Level 1 | Manual |
+
 | 6.3 | Ensure no security groups allow ingress from 0.0.0.0/0 to remote server administration ports | Level 1 | Automated |
 
 These controls were selected because they provide concrete configuration checks across identity, authorization, storage exposure, logging, and network exposure. CIS defines Level 1 as the baseline security profile intended to reduce common attack surface without requiring the more restrictive assumptions of Level 2.
@@ -30,8 +43,11 @@ These controls were selected because they provide concrete configuration checks 
 The Security Posture Monitor is intentionally limited to **cloud configuration posture**. It evaluates whether AWS resources are configured in ways that create recognizable security weaknesses; it does not attempt to become a complete runtime security, data governance, or multi-account security platform.
 
 - **Runtime detection:** Runtime compromise, malicious processes, command execution, persistence, and other activity occurring after a resource has been compromised are outside the monitor's scope. These concerns are better covered by **EDR, workload runtime security, and SIEM/behavioral detection tooling**.
+
 - **Data classification:** The monitor can identify configuration conditions such as public S3 access, but it does not determine whether the underlying data is public, confidential, regulated, or otherwise sensitive. These concerns are better covered by **data discovery, classification, DLP, and data-security tooling**.
+
 - **Multi-account governance:** The monitor does not assess organization-wide account structure, cross-account guardrails, or centralized governance. These concerns are better covered by **AWS Organizations, Control Tower, SCP analysis, and multi-account CSPM/governance tooling**.
+
 - **Application vulnerabilities:** The monitor does not inspect application source code, dependencies, or application behavior for vulnerabilities. These concerns are better covered by **SAST, DAST, SCA, and application-security tooling**.
 
 These exclusions keep the project focused on detecting **configuration-level security weaknesses** rather than reproducing the capabilities of several separate security platforms.
@@ -69,12 +85,15 @@ Collection and evaluation are separate phases. A collector gathers an inventory 
 The alternative was handing each check a memoized AWS session that caches calls. Both solve the immediate problem — three S3 checks should not each call `list_buckets` — but collect-then-evaluate buys three things the memoized session does not:
 
 - **Testability.** A check under test receives a dictionary. The test suite needs no AWS credentials, no `moto`, and no stubbing. This is what makes the Unit 7 requirement — a credential-free suite in CI — cheap rather than laborious.
+
 - **Point-in-time consistency.** Every check evaluates the same snapshot, so a resource changing mid-scan cannot produce a self-contradictory report.
+
 - **Replayability.** A serialized snapshot can be re-scanned offline, which makes a finding reproducible without re-querying the account.
 
 **Cost — two things given up:**
 
 - **Laziness.** The collector gathers its whole inventory regardless of which checks will run, so a single-check scan pays for data it does not use.
+
 - **Localization.** A check's data requirements no longer live in the check. Adding a check that needs data the collector does not yet gather means editing two files instead of one, and the snapshot schema becomes a contract between collector and checks that must be maintained deliberately.
 
 `BaseCheck` declares which snapshot sections it requires; the runner inspects collection status for those sections before invoking the check. This keeps the check pure while still surfacing the third outcome from decision 1. How absent data is represented within a section is covered in decision 5.
@@ -98,8 +117,11 @@ Each value in the snapshot is wrapped in a dict holding a `status` that records 
 The motivating case is S3. A bucket with no policy attached and a bucket whose policy returned `AccessDenied` both have `document: None`. They are distinguished only by `status`:
 
 ```
-bucket-b   policy: {"status": "ok",            "document": None}
-bucket-c   policy: {"status": "access_denied", "document": None}
+
+bucket-b   policy: {"status": "ok",            "document": None}
+
+bucket-c   policy: {"status": "access_denied", "document": None}
+
 ```
 
 Without the wrapper the two are identical, and a check reading `policy` would see `None`, conclude "no policy, therefore not public," and report a potentially exposed bucket as clean. That is the silent false negative described in decision 1, arriving through the data layer rather than through exception handling.
@@ -127,6 +149,7 @@ The rejected alternative is to keep the overall status as `VIOLATIONS` and put u
 S3 public-access findings use resource_sub_id to distinguish multiple findings produced for the same bucket and control. The sub-resource identifies the specific access mechanism, such as acl or policy.
 
 Severity is determined by the granted permission represented by the finding, not by the access mechanism or group name. The previous PublicExposure severity model was removed; S3PublicAccess no longer carries per-mechanism severities. Each Finding receives its severity from the granted permission when it is constructed.
+
 
 
 ### 8. Deferred (and Realized) Multi-Region Support
@@ -205,14 +228,44 @@ A remediation that causes an outage is worse than leaving the finding in place f
 
 ### 14. The Choice Of A Database
 
-I chose Postgres over SQLite because the application is intended to resemble a production deployment, where scans may eventually run concurrently and multiple workers may write findings at the same time. Postgres also provides JSONB, allowing the evidence field to remain structured while still being queryable.
+Postgres was selected over SQLite because the application is intended to resemble a production deployment, where scans may eventually run concurrently and multiple workers may write findings at the same time. Postgres also provides JSONB, allowing the evidence field to remain structured while still being queryable.
 
-The rejected alternative was SQLite. SQLite would have kept the test suite dependency-free and eliminated the need for Docker Compose and a database service in CI, making local development simpler. I accepted those additional costs because Postgres better matches the expected production environment and provides stronger support for concurrent writes and structured evidence queries.
+The rejected alternative was SQLite. SQLite would have kept the test suite dependency-free and eliminated the need for Docker Compose and a database service in CI, making local development simpler. The additional infrastructure cost was accepted because Postgres better matches the expected production environment and provides stronger support for concurrent writes and structured evidence queries.
 
+### 15. Suppression Requires Accountability and Expiration
+
+Decision: A finding cannot be suppressed unless `suppressed_by`, `justification`, and `expires_at` are provided. Suppression is treated as an explicit exception to an active security finding, not as deletion of the finding or removal of its evidence.
+
+Rationale: The three fields answer the minimum operational questions created by an exception: who requested it, why it is acceptable, and how long the exception should remain in effect. The schema enforces these requirements in `FindingStateUpdateSchema`, and the behavior is covered by a test. This directly prevents undocumented and indefinite suppression.
+
+Rejected alternative: A simple boolean suppression flag, or optional metadata accompanying that flag, would allow a finding to disappear from the active view without an explanation or expiration. That makes suppression harder to audit and easier to leave in place indefinitely.
+
+Expiration is evaluated at read time: once `expires_at` has passed, the finding no longer reports SUPPRESSED without requiring a background job to rewrite the database row. The historical suppression metadata remains available as part of the record.
+
+Cost: The guardrails add validation and operational friction for legitimate exceptions. They also establish accountability metadata, not caller authentication; `suppressed_by` records the supplied value but does not prove the identity of the person making the API request.
+
+### 16. Finding Status Is Computed at Read Time
+
+Decision: Finding status is derived when findings are read rather than persisted as a separate database field. The database row remains the historical record, while the API computes the current state from that record and time-dependent fields such as `expires_at`.
+
+Rationale: This is important for time-limited suppression. A suppression can expire between scans, so a persisted status field would require a background process or another synchronization mechanism to change the stored value when the clock passes the expiration time. Computing status at read time avoids that synchronization problem.
+
+Rejected alternative: Persisting the current status alongside the finding would make queries simpler, but it would introduce stale-state behavior unless another process continuously updated expired suppressions.
+
+Cost: The database representation and API representation are intentionally different: the database records what happened, while the API reports what is true now.
 
 ### Open questions
 
-ACL and account-level Block Public Access are already represented in the bucket entries. They use the same per-value status wrapper as policy, so each read can fail independently. Account-level BPA is also represented in the collected snapshot rather than being absent from the S3 bucket data model.
+The remaining open questions are primarily around the findings platform and its production boundary:
+
+API authentication and authorization. The findings API currently has no authentication or authorization. An identity model and permissions model are needed before external or multi-user deployment.
+
+api/db → scanner dependency direction. The database/API package currently imports from the scanner package. The dependency works, but the architectural boundary needs to be reconsidered if the findings platform becomes independently deployable.
+
+Trend data granularity. The current trend view has only one data point. A scan/history strategy is needed before the visualization can represent a meaningful longitudinal trend.
+
+Multi-account architecture. The current design scans a single AWS account. AWS Organizations and centralized findings aggregation remain future work.
+
 
 
 ---
@@ -230,6 +283,14 @@ If NIST 800-53 had been selected, the project would cite NIST control identifier
 **6.3 — Ensure no security groups allow ingress from 0.0.0.0/0 to remote server administration ports** is the most likely to produce an intentional finding. An organization may deliberately expose an administration port in a controlled design, such as a bastion host, provided another security mechanism controls or protects the access path. The CIS guidance itself recognizes this operational consideration.
 
 **2.12** can also produce legitimate findings for service accounts or legacy integrations that require long-lived access keys, but that does not eliminate the underlying credential-lifetime risk. The control specifically requires access keys to be rotated every 90 days or less.
+
+How does the system prevent suppression from silently hiding risk?
+
+Suppression is an explicit exception rather than a deletion of the finding. FindingStateUpdateSchema requires suppressed_by, justification, and expires_at before a finding can enter the suppressed state, and the requirement is covered by a test. The fields make the exception attributable, explainable, and time-bounded.
+
+The expiration is evaluated when finding status is read, so an expired suppression stops producing SUPPRESSED without requiring a background job to rewrite the finding. The original finding and its suppression metadata remain available for auditability.
+
+There is an important remaining limitation: these fields are accountability metadata, not authentication. Because the API currently has no authentication or authorization, suppressed_by does not independently verify who made the request.
 
 ### Why is a scanner that silently reports no findings worse than one that crashes?
 
