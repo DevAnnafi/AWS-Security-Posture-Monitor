@@ -89,6 +89,10 @@ data "archive_file" "remediation_lambda" {
     "api",
     "scanner/tests",
     "*.pyc",
+    "frontend",
+    "node_modules",
+    ".venv-prowler",
+    "prowler-output",
   ]
 }
 
