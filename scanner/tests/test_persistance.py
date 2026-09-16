@@ -1,30 +1,12 @@
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from sqlalchemy import select
 
 from api.db.models import Finding as FindingRow
 from api.db.models import FindingState, FindingStatus, Scan
-from api.db.session import engine
 from api.db.writer import write_scan_results
 from scanner.fixtures import FIXTURE
 from scanner.runner import run_scan
-
-from sqlalchemy.orm import Session
-
-
-@pytest.fixture
-def session():
-    connection = engine.connect()
-    transaction = connection.begin()
-    session = Session(bind=connection, join_transaction_mode="create_savepoint")
-
-    try:
-        yield session
-    finally:
-        session.close()
-        transaction.rollback()
-        connection.close()
 
 
 def test_writer_persists_scan_and_findings(session):
