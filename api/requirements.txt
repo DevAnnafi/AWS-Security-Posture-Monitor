@@ -4,3 +4,5 @@ sqlalchemy
 psycopg2-binary
 python-dotenv
 httpx
+python-jose[cryptography]
+passlib[argon2]
