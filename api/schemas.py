@@ -44,7 +44,6 @@ class FindingStateSchema(BaseSchema):
 
 class FindingStateUpdateSchema(BaseModel):
     status: FindingStatus | None = None
-    suppressed_by: str | None = None
     justification: str | None = None
     expires_at: datetime | None = None
 
@@ -53,13 +52,12 @@ class FindingStateUpdateSchema(BaseModel):
         if (
             self.status is FindingStatus.SUPPRESSED
             and (
-                self.suppressed_by is None
-                or self.justification is None
+                self.justification is None
                 or self.expires_at is None
             )
         ):
             raise ValueError(
-                "Suppression requires suppressed_by, justification, and expires_at"
+                "Suppression requires justification and expires_at"
             )
 
         return self

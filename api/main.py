@@ -6,25 +6,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from api.schemas import ScanSchema
 
+from api.auth import (
+    create_token,
+    get_current_user,
+    verify_password,
+)
 from api.db.models import (
     Finding as FindingRow,
     FindingState,
     FindingStatus,
     Scan,
-    User
+    User,
 )
-from api.db.session import SessionLocal
+from api.db.session import get_session
 from api.schemas import (
     FindingDetailSchema,
     FindingStateSchema,
     FindingStateUpdateSchema,
     FindingSummarySchema,
     FindingsResponse,
+    ScanSchema,
     SummarySchema,
 )
-from api.auth import verify_password, create_token
 
 app = FastAPI(
     title="AWS Security Posture Monitor"
@@ -36,10 +40,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-def get_session():
-    with SessionLocal() as session:
-        yield session
 
 
 def is_suppression_active(
@@ -283,6 +283,7 @@ def get_summary(
 def update_finding_state(
     finding_id: str,
     update: FindingStateUpdateSchema,
+    user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
     finding = session.scalars(
@@ -318,18 +319,31 @@ def update_finding_state(
     for field, value in provided.items():
         setattr(state, field, value)
 
+    if update.status is FindingStatus.SUPPRESSED:
+        state.suppressed_by = user.email
+
     session.commit()
     session.refresh(state)
 
     return state
 
-@app.get("/scans", response_model=list[ScanSchema])
+
+@app.get(
+    "/scans",
+    response_model=list[ScanSchema],
+)
 def list_scans(
     limit: int = 50,
     session: Session = Depends(get_session),
 ):
-    stmt = select(Scan).order_by(Scan.scanned_at.desc()).limit(limit)
+    stmt = (
+        select(Scan)
+        .order_by(Scan.scanned_at.desc())
+        .limit(limit)
+    )
+
     return list(session.scalars(stmt))
+
 
 @app.post("/token")
 def login(
