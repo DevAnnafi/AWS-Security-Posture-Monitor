@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from api.schemas import ScanSchema
@@ -12,6 +13,7 @@ from api.db.models import (
     FindingState,
     FindingStatus,
     Scan,
+    User
 )
 from api.db.session import SessionLocal
 from api.schemas import (
@@ -22,6 +24,7 @@ from api.schemas import (
     FindingsResponse,
     SummarySchema,
 )
+from api.auth import verify_password, create_token
 
 app = FastAPI(
     title="AWS Security Posture Monitor"
@@ -327,3 +330,27 @@ def list_scans(
 ):
     stmt = select(Scan).order_by(Scan.scanned_at.desc()).limit(limit)
     return list(session.scalars(stmt))
+
+@app.post("/token")
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: Session = Depends(get_session),
+):
+    user = session.scalars(
+        select(User).where(User.email == form_data.username)
+    ).first()
+
+    if not user or not verify_password(
+        form_data.password,
+        user.password_hash,
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return {
+        "access_token": create_token(user.email),
+        "token_type": "bearer",
+    }
