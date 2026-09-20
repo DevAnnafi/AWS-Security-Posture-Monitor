@@ -71,6 +71,7 @@ jobs:
           POSTGRES_DB: security_db
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5433
+          JWT_SECRET: ci_test_secret
 
       - name: Run pytest
         run: python -m pytest scanner/ -q
@@ -80,5 +81,4 @@ jobs:
           POSTGRES_DB: security_db
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5433
-
-      
+          JWT_SECRET: ci_test_secret
