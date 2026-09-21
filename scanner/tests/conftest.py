@@ -39,3 +39,12 @@ def client(session):
         yield c
 
     app.dependency_overrides.clear()
+
+@pytest.fixture
+def anonymous_client(session):
+    app.dependency_overrides[get_session] = lambda: session
+
+    with TestClient(app) as c:
+        yield c
+
+    app.dependency_overrides.clear()

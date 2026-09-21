@@ -3,9 +3,6 @@ from scanner.fixtures import FIXTURE
 from scanner.runner import run_scan
 from datetime import datetime, timedelta, timezone
 from api.db.models import FindingState
-from api.db.writer import write_scan_results
-from scanner.fixtures import FIXTURE
-from scanner.runner import run_scan
 
 def test_findings_endpoint_returns_latest_scan(session, client):
     result = run_scan(FIXTURE)
@@ -48,13 +45,14 @@ def test_suppressed_findings_are_filtered(session, client):
         f"/findings/{finding_id}/state",
         json={
             "status": "suppressed",
-            "suppressed_by": "test",
+            "suppressed_by": "attacker",
             "justification": "False positive",
             "expires_at": expires_at.isoformat(),
         },
     )
 
     assert response.status_code == 200
+    assert response.json()["suppressed_by"] == "test@example.com"
 
     response = client.get("/findings?include_suppressed=false")
 
@@ -95,3 +93,17 @@ def test_expired_suppression_reads_as_new(session, client):
     assert len(body["findings"]) == 1
     assert body["findings"][0]["finding_id"] == finding_id
     assert body["findings"][0]["status"] == "new"
+
+def test_suppression_requires_authentication(anonymous_client):
+    expires_at = datetime.now(timezone.utc) + timedelta(days=1)
+
+    response = anonymous_client.patch(
+        "/findings/made-up-finding-id/state",
+        json={
+            "status": "suppressed",
+            "justification": "Test authentication requirement",
+            "expires_at": expires_at.isoformat(),
+        },
+    )
+
+    assert response.status_code == 401
