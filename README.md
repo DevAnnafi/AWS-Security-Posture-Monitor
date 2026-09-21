@@ -4,7 +4,7 @@
 
 A cloud security posture management (CSPM) pipeline that detects AWS misconfigurations against the CIS AWS Foundations Benchmark, prioritizes findings by the capability an attacker gains, remediates a narrow subset automatically, and reports honestly on what it could not evaluate.
 
-> **Status: functional end to end.** The scanner collects from live AWS accounts, runs three CIS checks, persists findings to Postgres, serves them through a FastAPI service, and reverts two classes of misconfiguration automatically. 53 tests run in CI. Three of six planned checks are built. Sections below are labeled **Built** or **Planned**; the [Roadmap](#roadmap) tracks progress.
+> **Status: functional end to end.** The scanner collects from live AWS accounts, runs three CIS checks, persists findings to Postgres, serves them through a FastAPI service with authenticated writes, and reverts two classes of misconfiguration automatically. 54 tests run in CI. Three of six planned checks are built. Sections below are labeled **Built** or **Planned**; the [Roadmap](#roadmap) tracks progress.
 
 Design decisions are written up in a nine-part series: [Building an AWS Security Posture Monitor From Scratch](https://medium.com/@islamannafi).
 
@@ -84,7 +84,8 @@ Legend: **Built** = implemented, tested, and committed · **Planned** = designed
 - **Multi-region collection** *(Built).* Regions are collected independently, so a permission failure in one region does not discard results from the others.
 - **Threshold-based auto-remediation** *(Built).* Narrowly defined findings are reverted through EventBridge → Lambda within seconds. Anything outside the threshold alerts instead.
 - **Re-scan before remediation** *(Built).* The Lambda reads the affected resource again and runs the same detection logic before changing anything, so there is one detection implementation rather than two.
-- **Suppression guardrails** *(Built).* Suppressing a finding requires a name, a justification, and an expiry. Expired suppressions return on their own.
+- **Suppression guardrails** *(Built).* Suppressing a finding requires an authenticated user, a justification, and an expiry. Who suppressed it comes from the login token, never from the request. Expired suppressions return on their own.
+- **Authenticated writes** *(Built).* JWT login with Argon2-hashed passwords. Every state change requires a token; read endpoints are open in this phase.
 - **Read-time finding status** *(Built).* Status is computed when findings are read, so an expired suppression stops applying without a background job rewriting historical rows.
 - **Credential-free scanner tests** *(Built).* Check and collector tests run with no AWS configuration, including error branches a modern AWS account cannot produce.
 - **Reproducible vulnerable lab** *(Built).* The insecure target environment is defined in Terraform, so results are reproducible by anyone cloning the repo.
@@ -265,13 +266,27 @@ Four tables, split by lifetime:
 
 Suppression is the one feature that makes a security finding disappear, so it carries guardrails enforced in the schema rather than suggested in documentation:
 
-- **Who** — `suppressed_by` must be supplied
+- **Who** — taken from the authenticated user's token
 - **Why** — `justification` must be supplied
 - **For how long** — `expires_at` must be supplied
 
-A request missing any of them is rejected with a 422. The dashboard surfaces suppressed counts explicitly rather than quietly excluding them, so a tile reads *2 critical, 1 suppressed* rather than *2 critical*.
+A request without a valid token is rejected with a 401. A request missing a justification or expiry is rejected with a 422. The dashboard surfaces suppressed counts explicitly rather than quietly excluding them, so a tile reads *2 critical, 1 suppressed* rather than *2 critical*.
 
-`suppressed_by` records a supplied value; it does not prove identity. The API has no authentication yet — see [Known gaps](#known-gaps).
+`suppressed_by` is not an input. The request schema has no such field, and the endpoint sets it from the token after applying the request body — so a client that sends `"suppressed_by": "someone-else"` is ignored, and a test asserts exactly that. Identity is derived, not claimed.
+
+### Authentication
+
+`POST /token` takes an email and password (OAuth2 password form) and returns a JWT signed with HS256, valid for 30 minutes. Passwords are stored as Argon2 hashes. There are no refresh tokens; an expired token means logging in again.
+
+Only state-changing requests require a token in this phase:
+
+| Requires a token | Open |
+|---|---|
+| `PATCH /findings/{id}/state` | `GET /findings`, `GET /findings/{id}`, `GET /summary`, `GET /scans`, `GET /health` |
+
+Authentication runs before the handler, so an unauthenticated request is rejected before the finding lookup happens. A caller without a token gets 401 whether or not the finding exists — never a 404 that would confirm it does.
+
+Invalid signatures, expired tokens, a missing `sub` claim, and a token for a user who no longer exists all return the same 401 with the same message, and a wrong email returns the same error as a wrong password. Distinguishing them would tell an attacker which accounts exist.
 
 ### Status is computed, not stored
 
@@ -283,15 +298,16 @@ The database records what happened. The API reports what is true now. Those deli
 
 ### Endpoints
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/findings` | Latest scan's findings, filterable by severity, region, control |
-| `GET` | `/findings/{id}` | One finding with its evidence |
-| `GET` | `/summary` | Counts by severity and control, plus suppressed count |
-| `GET` | `/scans` | Scan history |
-| `PATCH` | `/findings/{id}/state` | Acknowledge, suppress, or restore a finding |
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `POST` | `/token` | — | Exchange email and password for a JWT |
+| `GET` | `/findings` | Open | Latest scan's findings, filterable by severity, region, control |
+| `GET` | `/findings/{id}` | Open | One finding with its evidence |
+| `GET` | `/summary` | Open | Counts by severity and control, plus suppressed count |
+| `GET` | `/scans` | Open | Scan history |
+| `PATCH` | `/findings/{id}/state` | **Token** | Acknowledge, suppress, or restore a finding |
 
-Interactive docs at `/docs` when the service is running.
+Interactive docs at `/docs` when the service is running. The **Authorize** button there logs in against `/token` and attaches the token to later requests.
 
 ---
 
@@ -332,7 +348,7 @@ This is wall-clock measurement, not profiling.
 
 ## Testing
 
-53 tests running in GitHub Actions on every push and pull request.
+54 tests running in GitHub Actions on every push and pull request.
 
 Three layers, each covering what the others cannot:
 
@@ -415,7 +431,34 @@ docker compose up -d
 python -m api.db.init
 ```
 
-`.env` needs `POSTGRES_PASSWORD` set. Avoid `@`, `$`, and `:` in the value — all three break either the connection URL or Compose's variable interpolation.
+`.env` needs two values:
+
+```bash
+POSTGRES_PASSWORD=choose-a-password
+JWT_SECRET=paste-a-generated-secret
+```
+
+Avoid `@`, `$`, and `:` in the Postgres password — all three break either the connection URL or Compose's variable interpolation. Generate the JWT secret rather than typing one:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Both are required: the API refuses to start without them.
+
+Create a user so you can log in and suppress findings:
+
+```python
+from api.auth import hash_password
+from api.db.models import User
+from api.db.session import SessionLocal
+
+with SessionLocal() as session:
+    session.add(User(email="you@example.com", password_hash=hash_password("choose-a-password")))
+    session.commit()
+```
+
+There is no registration endpoint; users are created directly.
 
 ### 4. Run a scan and persist it
 
@@ -526,7 +569,7 @@ Zero S3 findings — and the status says so, rather than reporting a clean envir
 
 ## Design decisions
 
-[`docs/architecture.md`](docs/architecture.md) records sixteen design decisions with their reasoning, rejected alternatives, and costs. [`docs/interview-notes.md`](docs/interview-notes.md) answers the defense questions behind them. The ones that shape everything else:
+[`docs/architecture.md`](docs/architecture.md) records seventeen design decisions with their reasoning, rejected alternatives, and costs. [`docs/interview-notes.md`](docs/interview-notes.md) answers the defense questions behind them. The ones that shape everything else:
 
 - **Collect-then-evaluate.** Checks are pure functions over a snapshot and never call boto3. The test suite hands them dictionaries; no credentials, no mocking library.
 - **Per-value retrieval status.** Every collected value carries its own status. A bucket with no policy and a bucket whose policy returned `AccessDenied` both have `document: None`; only the status distinguishes them, and conflating them produces a silent false negative.
@@ -538,6 +581,7 @@ Zero S3 findings — and the status says so, rather than reporting a clean envir
 - **2.14 is detect-only.** Detaching an administrative IAM policy could break a legitimate workload. A remediation that causes an outage is worse than a finding left for manual review.
 - **Suppression requires accountability and expiry.** Enforced in the schema, not suggested in documentation.
 - **Status is computed at read time.** No background job, no stale state, and the audit trail of who suppressed what survives intact.
+- **Writes are authenticated; identity is derived.** State changes require a JWT, and `suppressed_by` comes from the token rather than the request, so a client cannot record an action under someone else's name. Reads stay open in this phase so the dashboard keeps working without a login flow.
 
 ---
 
@@ -545,7 +589,11 @@ Zero S3 findings — and the status says so, rather than reporting a clean envir
 
 Stated rather than hidden:
 
-- **The API has no authentication.** Anyone who can reach it can suppress any finding under any name. `suppressed_by` is accountability metadata, not proof of identity.
+- **Read endpoints are unauthenticated.** Anyone who can reach the API can list findings, which is itself sensitive: it enumerates unremediated misconfigurations. Writes are protected; reads are not yet.
+- **The dashboard cannot suppress findings.** Its suppress form sends no token, so it now receives a 401. Suppression works through the API and `/docs`; the frontend has no login flow yet.
+- **No authorization, only authentication.** Every logged-in user can suppress any finding. There are no roles, and no distinction between who may view and who may change state.
+- **No refresh tokens or revocation.** Tokens last 30 minutes and cannot be invalidated early; deleting a user stops their next request, but a stolen token stays valid until it expires.
+- **No user management.** Users are inserted directly into the database; there is no registration, password reset, or rate limit on login attempts.
 - **IPv6 is not checked.** A security group rule opening `::/0` on port 22 is equally public and is currently missed.
 - **`NotAction` is not handled.** A policy statement with `NotAction: ["iam:*"]` and `Resource: "*"` grants everything except IAM — effectively admin, and check 2.14 misses it.
 - **Default security groups are not flagged.** Prowler reports them under CIS 4.3; this scanner ignores them because their ingress references the group itself. That is a gap, not a difference of opinion — see [`docs/tool-comparison.md`](docs/tool-comparison.md).
@@ -589,7 +637,9 @@ This repository provisions **intentionally insecure AWS infrastructure**. Read b
 - [x] Postgres persistence, FastAPI, Next.js dashboard (Unit 10)
 - [x] Documentation and portfolio packaging (Unit 11)
 - [ ] Remaining three checks — CIS 4.1, 2.10, 2.12
-- [ ] API authentication
+- [x] Authenticated writes with token-derived identity
+- [ ] Dashboard login, so suppression works from the UI
+- [ ] Authenticated reads, roles, and login rate limiting
 - [ ] Scheduled scans, so the trend view has data
 - [ ] *Stretch:* multi-account via AWS Organizations, Security Hub (ASFF) export
 

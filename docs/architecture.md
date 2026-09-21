@@ -254,6 +254,34 @@ Rejected alternative: Persisting the current status alongside the finding would 
 
 Cost: The database representation and API representation are intentionally different: the database records what happened, while the API reports what is true now.
 
+### 17. Writes Are Authenticated and Identity Is Derived From the Token
+
+Decision: State-changing requests require a JWT. `PATCH /findings/{id}/state` depends on `get_current_user`, and `suppressed_by` is set from the authenticated user's email rather than accepted from the request body. The request schema no longer contains a `suppressed_by` field. Read endpoints remain unauthenticated in this phase.
+
+Tokens are issued by `POST /token` using the OAuth2 password form, signed with HS256, and valid for 30 minutes. Passwords are stored as Argon2 hashes. There are no refresh tokens.
+
+Rationale: Decision 15 required a name on every suppression but recorded whatever name the client sent, and its stated cost was that `suppressed_by` proved nothing about who made the request. This decision closes that gap. A field the client cannot supply cannot be forged, which is stronger than validating a supplied value.
+
+Writes were prioritized because suppression is the operation that can hide risk. Reading findings exposes information; suppressing one removes it from the open count. Protecting the second first addresses the more direct threat.
+
+Keeping reads open means the dashboard continues to display findings without a login flow, so authentication could ship without blocking on frontend work.
+
+Authentication runs as a dependency, before the handler body. An unauthenticated request is rejected before the finding lookup, so a caller without a token receives 401 for every finding ID, existing or not, and cannot use the API to confirm which findings exist. All token failures, and wrong-email versus wrong-password at login, return the same message for the same reason.
+
+Rejected alternatives:
+
+- **A shared API key.** Simpler, but it authenticates a caller rather than a person, so `suppressed_by` would remain an unverified claim. It would gate access without fixing the problem decision 15 named.
+- **Authenticating every endpoint now.** The correct end state, but it breaks the dashboard until the frontend can log in and attach tokens.
+- **Accepting `suppressed_by` and checking it against the token.** Keeps a request field whose only valid value is already known to the server. Removing the field is simpler and leaves nothing to validate.
+
+Cost:
+
+- Read endpoints are open. A list of unremediated misconfigurations is itself sensitive, and anyone who can reach the API can retrieve it.
+- The dashboard's suppress form sends no token, so suppression from the UI now fails with 401. Suppression currently works only through the API.
+- This is authentication without authorization. Any logged-in user can suppress any finding; there are no roles.
+- Tokens cannot be revoked. A stolen token remains valid until it expires. Deleting the user stops the next request, because `get_current_user` looks the user up on every call.
+- Most API tests override `get_current_user` with a fixed user rather than exercising real tokens. One test runs the real dependency without credentials and asserts 401, and another asserts that a client-supplied `suppressed_by` is ignored.
+
 ### Open questions
 
 The remaining open questions are primarily around the findings platform and its production boundary:
