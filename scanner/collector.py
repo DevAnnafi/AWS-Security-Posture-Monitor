@@ -4,14 +4,27 @@ from botocore.exceptions import ClientError
 from urllib.parse import unquote
 import boto3
 import json
+import time
+import csv
+import io
 
+CREDENTIAL_REPORT_COLUMNS = (
+    "user",
+    "password_enabled",
+    "mfa_active",
+    "access_key_1_active",
+    "access_key_1_last_rotated",
+    "access_key_2_active",
+    "access_key_2_last_rotated",
+)
 
-class CollectionStatus(Enum):
+class CollectionStatus(str, Enum):
     OK = "ok"
     ACCESS_DENIED = "access_denied"
-    PARTIAL = "partial"  
     PARSE_ERROR = "parse_error"
     NOT_FOUND = "not_found"
+    PARTIAL = "partial"
+    TIMEOUT = "timeout"
 
 def collect_security_group(ec2_client, group_id):
     try:
@@ -421,4 +434,75 @@ def collect_snapshot():
         "security_groups": collect_security_groups(
             regions,
         ),
+    }
+
+def _normalize_credential_report_row(row: dict) -> dict:
+    normalized = {}
+
+    for column in CREDENTIAL_REPORT_COLUMNS:
+        value = row[column]
+
+        if value in ("N/A", "no_information"):
+            normalized[column] = None
+        elif value == "not_supported":
+            normalized[column] = value
+        elif value == "true":
+            normalized[column] = True
+        elif value == "false":
+            normalized[column] = False
+        else:
+            normalized[column] = value
+
+    return normalized
+
+def collect_credential_report(iam_client, timeout: float = 30.0):
+    deadline = time.monotonic() + timeout
+
+    try:
+        response = iam_client.generate_credential_report()
+
+        while response["State"] != "COMPLETE":
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return {
+                    "status": CollectionStatus.TIMEOUT.value,
+                    "document": None,
+                }
+
+            time.sleep(min(1.0, remaining))
+            response = iam_client.generate_credential_report()
+
+        report = iam_client.get_credential_report()
+
+    except ClientError as exc:
+        error_code = exc.response["Error"]["Code"]
+
+        if error_code in {"AccessDenied", "AccessDeniedException"}:
+            return {
+                "status": CollectionStatus.ACCESS_DENIED.value,
+                "document": None,
+            }
+
+        if error_code in {"ReportNotPresent", "ReportExpired"}:
+            return {
+                "status": CollectionStatus.NOT_FOUND.value,
+                "document": None,
+            }
+
+        raise
+
+    content = report["Content"].decode("utf-8")
+    reader = csv.DictReader(io.StringIO(content))
+
+    users = [
+        _normalize_credential_report_row(row)
+        for row in reader
+    ]
+
+    return {
+        "status": CollectionStatus.OK.value,
+        "document": {
+            "users": users,
+            "generated_at": report["GeneratedTime"].isoformat(),
+        },
     }
