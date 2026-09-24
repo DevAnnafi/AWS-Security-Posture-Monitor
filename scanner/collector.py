@@ -11,6 +11,7 @@ import io
 CREDENTIAL_REPORT_COLUMNS = (
     "user",
     "password_enabled",
+    "arn",
     "mfa_active",
     "access_key_1_active",
     "access_key_1_last_rotated",
@@ -433,6 +434,10 @@ def collect_snapshot():
 
         "security_groups": collect_security_groups(
             regions,
+        ),
+
+        "credential_report": collect_credential_report(
+            iam_client,
         ),
     }
 

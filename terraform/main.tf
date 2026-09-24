@@ -7,6 +7,35 @@ resource "aws_s3_bucket" "public" {
   bucket = "${var.name_prefix}-public-bucket"
 }
 
+resource "aws_iam_user" "lab_user" {
+  name          = "${var.name_prefix}-console-user"
+  force_destroy = true
+
+  tags = {
+    Project = "aws-security-posture-monitor"
+  }
+}
+
+resource "aws_iam_user_login_profile" "lab_user" {
+  user = aws_iam_user.lab_user.name
+}
+
+resource "aws_iam_user_policy" "deny_all" {
+  name = "${var.name_prefix}-deny-everything"
+  user = aws_iam_user.lab_user.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect   = "Deny"
+        Action   = "*"
+        Resource = "*"
+      }
+    ]
+  })
+}
 
 resource "aws_s3_bucket_public_access_block" "public" {
   bucket = aws_s3_bucket.public.id
