@@ -776,3 +776,90 @@ IAM_NOTREADABLE_FIXTURE = {
         "document": None,
     },
 }
+
+CREDENTIAL_REPORT_FIXTURE = {
+    "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
+    "credential_report": {
+        "status": "ok",
+        "document": {
+            "generated_at": "2026-09-24T20:00:00+00:00",
+            "users": [
+                {
+                    "user": "active-user",
+                    "arn": "arn:aws:iam::157182991517:user/active-user",
+                    "password_enabled": True,
+                    "mfa_active": True,
+                    "access_key_1_active": True,
+                    "access_key_1_last_rotated": "2026-09-01T12:00:00+00:00",
+                    "access_key_2_active": False,
+                    "access_key_2_last_rotated": None,
+                },
+                {
+                    "user": "password-only-user",
+                    "arn": "arn:aws:iam::157182991517:user/password-only-user",
+                    "password_enabled": True,
+                    "mfa_active": False,
+                    "access_key_1_active": False,
+                    "access_key_1_last_rotated": None,
+                    "access_key_2_active": False,
+                    "access_key_2_last_rotated": None,
+                },
+                {
+                    "user": "access-key-user",
+                    "arn": "arn:aws:iam::157182991517:user/access-key-user",
+                    "password_enabled": False,
+                    "mfa_active": False,
+                    "access_key_1_active": True,
+                    "access_key_1_last_rotated": "2026-08-15T10:30:00+00:00",
+                    "access_key_2_active": True,
+                    "access_key_2_last_rotated": "2026-09-20T14:00:00+00:00",
+                },
+            ],
+        },
+    },
+}
+
+CLEAN_ENVIRONMENT_FIXTURE = {
+    "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
+
+    "account_bpa": {
+        "status": "ok",
+        "document": {
+            "BlockPublicAcls": False,
+            "IgnorePublicAcls": False,
+            "BlockPublicPolicy": False,
+            "RestrictPublicBuckets": False,
+        },
+    },
+
+    "s3_buckets": {
+        "status": "ok",
+        "document": [],
+    },
+
+    "iam_policies": {
+        "status": "ok",
+        "document": [],
+    },
+
+    "credential_report": {
+        "status": "ok",
+        "document": {
+            "generated_at": "2026-09-24T20:00:00+00:00",
+            "users": [],
+        },
+    },
+
+    "security_groups": {
+        "status": "ok",
+        "document": [
+            {
+                "region": "us-east-1",
+                "status": "ok",
+                "document": [],
+            }
+        ],
+    },
+}
