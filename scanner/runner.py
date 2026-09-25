@@ -4,7 +4,6 @@ from enum import Enum
 from uuid import UUID, uuid4
 
 from scanner.registry import CheckResult, CHECK_REGISTRY, CheckStatus
-import scanner.checks
 
 
 class ScanStatus(str, Enum):
