@@ -25,7 +25,7 @@ class IAMMFAEnabledCheck(BaseCheck):
         unevaluated = []
 
         for user in section["document"]["users"]:
-            if user["password_enabled"] and not user["mfa_active"]:
+            if user["password_enabled"] is True and user["mfa_active"] is False:
                 findings.append(
                     Finding(
                         control_id=self.control_id,
