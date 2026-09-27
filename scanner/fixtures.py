@@ -1,4 +1,5 @@
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 
 FIXTURE = {
     "collection_window": None,
@@ -824,6 +825,71 @@ CREDENTIAL_REPORT_FIXTURE = {
                 "access_key_1_last_rotated": "2026-08-15T10:30:00+00:00",
                 "access_key_2_active": True,
                 "access_key_2_last_rotated": "2026-09-20T14:00:00+00:00",
+                },
+            ],
+        },
+    },
+}
+
+KEY_ROTATION_NOW = datetime.now(timezone.utc)
+
+KEY_ROTATION_FIXTURE = {
+    "account_id": "157182991517",
+    "regions_covered": ["us-east-1"],
+    "credential_report": {
+        "status": "ok",
+        "document": {
+            "generated_at": KEY_ROTATION_NOW.isoformat(),
+            "users": [
+                {
+                    "user": "active-stale-key-user",
+                    "arn": "arn:aws:iam::157182991517:user/active-stale-key-user",
+                    "password_enabled": False,
+                    "mfa_active": False,
+                    "access_key_1_active": True,
+                    "access_key_1_last_rotated": (
+                        KEY_ROTATION_NOW - timedelta(days=120)
+                    ).isoformat(),
+                    "access_key_2_active": False,
+                    "access_key_2_last_rotated": None,
+                },
+                {
+                    "user": "inactive-stale-key-user",
+                    "arn": "arn:aws:iam::157182991517:user/inactive-stale-key-user",
+                    "password_enabled": False,
+                    "mfa_active": False,
+                    "access_key_1_active": False,
+                    "access_key_1_last_rotated": (
+                        KEY_ROTATION_NOW - timedelta(days=120)
+                    ).isoformat(),
+                    "access_key_2_active": False,
+                    "access_key_2_last_rotated": None,
+                },
+                {
+                    "user": "recent-key-user",
+                    "arn": "arn:aws:iam::157182991517:user/recent-key-user",
+                    "password_enabled": False,
+                    "mfa_active": False,
+                    "access_key_1_active": True,
+                    "access_key_1_last_rotated": (
+                        KEY_ROTATION_NOW - timedelta(days=10)
+                    ).isoformat(),
+                    "access_key_2_active": False,
+                    "access_key_2_last_rotated": None,
+                },
+                {
+                    "user": "both-stale-keys-user",
+                    "arn": "arn:aws:iam::157182991517:user/both-stale-keys-user",
+                    "password_enabled": False,
+                    "mfa_active": False,
+                    "access_key_1_active": True,
+                    "access_key_1_last_rotated": (
+                        KEY_ROTATION_NOW - timedelta(days=120)
+                    ).isoformat(),
+                    "access_key_2_active": False,
+                    "access_key_2_last_rotated": (
+                        KEY_ROTATION_NOW - timedelta(days=120)
+                    ).isoformat(),
                 },
             ],
         },
