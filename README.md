@@ -4,7 +4,7 @@
 
 A cloud security posture management (CSPM) pipeline that detects AWS misconfigurations against the CIS AWS Foundations Benchmark, prioritizes findings by the capability an attacker gains, remediates a narrow subset automatically, and reports honestly on what it could not evaluate.
 
-> **Status: functional end to end.** The scanner collects from live AWS accounts, runs three CIS checks, persists findings to Postgres, serves them through a FastAPI service with authenticated writes, and reverts two classes of misconfiguration automatically. 54 tests run in CI. Three of six planned checks are built. Sections below are labeled **Built** or **Planned**; the [Roadmap](#roadmap) tracks progress.
+> **Status: functional end to end.** The scanner collects from live AWS accounts, runs six CIS checks across S3, EC2, IAM and CloudTrail, persists findings to Postgres, serves them through a FastAPI service with authenticated writes, and reverts two classes of misconfiguration automatically. 59 tests run in CI. Sections below are labeled **Built** or **Planned**; the [Roadmap](#roadmap) tracks progress.
 
 Design decisions are written up in a nine-part series: [Building an AWS Security Posture Monitor From Scratch](https://medium.com/@islamannafi).
 
@@ -103,15 +103,23 @@ Control numbers are verified against the CIS AWS Foundations Benchmark **v7.0.0*
 | 3.1.4 | S3 bucket publicly accessible (policy or ACL) | **Built** | Derived per finding | Enables all four BPA flags |
 | 6.3 | Security group allows `0.0.0.0/0` to admin ports (22, 3389) | **Built** | Critical | Exact admin ports only |
 | 2.14 | IAM policy allowing full `*:*` admin privileges is attached | **Built** | Critical | Detect-only |
-| 4.1 | CloudTrail not enabled in all regions | Planned | — | — |
-| 2.10 | MFA not enabled for IAM users with a console password | Planned | — | — |
-| 2.12 | Access keys not rotated within 90 days | Planned | — | — |
+| 4.1 | CloudTrail not enabled in all regions | **Built** | High | Detect-only |
+| 2.10 | MFA not enabled for IAM users with a console password | **Built** | Low | Detect-only |
+| 2.12 | Access keys not rotated within 90 days | **Built** | Low / Info | Detect-only |
 
 **3.1.4** evaluates the full Block Public Access precedence chain: account-level BPA overrides bucket-level, both override the bucket policy and ACL, and Object Ownership determines whether ACL grants have any effect at all. A bucket with `Principal: "*"` in its policy is **not** reported public if BPA blocks it.
 
 **6.3** treats port ranges as ranges (`FromPort: 0, ToPort: 65535` covers 22) and handles `IpProtocol: "-1"`, where AWS omits the port fields entirely because every port on every protocol is open.
 
 **2.14** identifies attached IAM policies granting `Action: "*"` on `Resource: "*"`. Service-specific wildcards such as `s3:*` do not qualify as full administrative access, and unattached policies are not reported — though they are still collected, so a future control could flag dormant admin policies.
+
+**2.10** and **2.12** both read the IAM credential report, which is generated asynchronously: the collector requests it, polls until AWS reports it complete, then parses the CSV. AWS caches the report for up to four hours, so the snapshot records the report's own `generated_at` alongside the scan time rather than implying the data is current.
+
+Values in that report are strings, including sentinels. `not_supported` is preserved distinctly rather than coerced to `false` — the root account reports it for fields that do not apply, and treating it as a boolean made 2.10 flag root for a console password it does not have.
+
+**2.12** reports each stale key separately, with the key slot in `resource_sub_id`, so a user with two stale keys produces two findings that can be suppressed independently. An active stale key scores `LOW`; an inactive one scores `INFO`, because it cannot authenticate until someone re-enables it.
+
+**4.1** collects trails per region and keeps shadow trails — the copies of a multi-region trail visible from regions other than its home. The duplication is deliberate: for this control the *absence* of a multi-region trail is the finding, so a region the scanner could not read would otherwise be indistinguishable from a region with no trail. A trail also has to be actively logging to count, which is separate state fetched per trail and wrapped with its own collection status.
 
 ---
 
@@ -323,13 +331,13 @@ Five levels across two scales. The top three measure the capability an exposure 
 | Low | A weakened control, no capability granted | Console user without MFA; active access key older than 90 days |
 | Info | Weakened control, not currently reachable | Inactive access key older than 90 days |
 
-For the top three, severity is derived per finding from what the configuration actually grants — a policy allowing `s3:GetObject` and one allowing `s3:*` on the same bucket score differently.
-
-The action allow-list is inverted on purpose: the scanner enumerates the actions it can prove are read-only and scores everything else as level 2. It cannot reliably decide whether an unfamiliar action is dangerous, but it can decide whether one is known-safe. The cost is over-scoring benign actions like `s3:GetBucketLocation` until they are explicitly listed.
+For the top three, severity is derived per finding from what the configuration actually grants.
 
 `Low` and `Info` exist because CIS 2.10 and 2.12 do not fit the capability model. A user without MFA has granted nobody access; the account is one stolen password away from compromise rather than already compromised. An access key that has not rotated in 120 days grants exactly what it granted on day one. Neither describes capability an attacker currently holds, so they are measured on a different scale that happens to share the same enum.
 
 The consequence is that comparing across the boundary is not meaningful. `HIGH > LOW` evaluates to `True` in code, but it compares a capability measurement against a compliance measurement. The ordering still surfaces urgent findings first, because a capability granted is more pressing than a control weakened — that is true rather than guaranteed by the model.
+
+The action allow-list is inverted on purpose: the scanner enumerates the actions it can prove are read-only and scores everything else as level 2. It cannot reliably decide whether an unfamiliar action is dangerous, but it can decide whether one is known-safe. The cost is over-scoring benign actions like `s3:GetBucketLocation` until they are explicitly listed.
 
 The model is a documented heuristic, not a validated one. Full rationale, including why CVSS was not used and what validating it would require, is in [`docs/architecture.md`](docs/architecture.md) and [`docs/interview-notes.md`](docs/interview-notes.md).
 
@@ -354,7 +362,7 @@ This is wall-clock measurement, not profiling.
 
 ## Testing
 
-54 tests running in GitHub Actions on every push and pull request.
+59 tests running in GitHub Actions on every push and pull request.
 
 Three layers, each covering what the others cannot:
 
@@ -524,13 +532,19 @@ Against the deployed lab, scanning four regions:
 ```text
 ScanStatus.COMPLETED
 3.1.4 CheckStatus.VIOLATIONS 1
+    arn:aws:s3:::cspm-lab-public-bucket MEDIUM
 6.3   CheckStatus.VIOLATIONS 1
+    sg-086d056ab205f5527 CRITICAL
 2.14  CheckStatus.VIOLATIONS 1
-us-east-1 ok 2
-us-east-2 ok 1
-us-west-1 ok 1
-us-west-2 ok 1
+    arn:aws:iam::ACCOUNT:policy/cspm-lab-full-access-test CRITICAL
+2.10  CheckStatus.VIOLATIONS 1
+    arn:aws:iam::ACCOUNT:user/cspm-lab-console-user LOW
+2.12  CheckStatus.EVALUATED 0
+4.1   CheckStatus.VIOLATIONS 1
+    ACCOUNT HIGH
 ```
+
+2.12 reports nothing because every key in the lab account was rotated recently. That is the correct result and also an unverifiable one — the 90-day boundary is exercised by fixtures, not by live data, because a key's rotation date cannot be backdated.
 
 The same scan run under an identity lacking `s3:GetBucketPolicy`:
 
@@ -575,7 +589,7 @@ Zero S3 findings — and the status says so, rather than reporting a clean envir
 
 ## Design decisions
 
-[`docs/architecture.md`](docs/architecture.md) records seventeen design decisions with their reasoning, rejected alternatives, and costs. [`docs/interview-notes.md`](docs/interview-notes.md) answers the defense questions behind them. The ones that shape everything else:
+[`docs/architecture.md`](docs/architecture.md) records eighteen design decisions with their reasoning, rejected alternatives, and costs. [`docs/interview-notes.md`](docs/interview-notes.md) answers the defense questions behind them. The ones that shape everything else:
 
 - **Collect-then-evaluate.** Checks are pure functions over a snapshot and never call boto3. The test suite hands them dictionaries; no credentials, no mocking library.
 - **Per-value retrieval status.** Every collected value carries its own status. A bucket with no policy and a bucket whose policy returned `AccessDenied` both have `document: None`; only the status distinguishes them, and conflating them produces a silent false negative.
@@ -611,7 +625,9 @@ Stated rather than hidden:
 - **No CLI.** Scans run from Python, not a command line.
 - **The trend view has one data point.** The schema supports history; nothing has generated it over time yet.
 - **`api/db` imports from `scanner`.** Works, but the boundary needs rethinking if the findings platform ever deploys independently.
-- **Three of six planned checks are built.**
+- **CIS 2.12's threshold is not verified against live data.** A key's rotation date cannot be backdated, so the 90-day boundary is only exercised by fixtures. The collector and the date parsing are verified against real report data; the arithmetic is not.
+- **The severity enum spans two scales.** `HIGH > LOW` is a valid comparison in code but compares a capability measurement against a compliance measurement. Sorting a mixed list by severity silently mixes them — see decision 18 in [`docs/architecture.md`](docs/architecture.md).
+- **4.1 does not check log file validation or KMS encryption.** Those are separate CIS controls; the collector stores the fields, but no check reads them.
 
 ---
 
@@ -642,7 +658,7 @@ This repository provisions **intentionally insecure AWS infrastructure**. Read b
 - [x] Prowler coverage comparison (Unit 9)
 - [x] Postgres persistence, FastAPI, Next.js dashboard (Unit 10)
 - [x] Documentation and portfolio packaging (Unit 11)
-- [ ] Remaining three checks — CIS 4.1, 2.10, 2.12
+- [x] Remaining three checks — CIS 4.1, 2.10, 2.12
 - [x] Authenticated writes with token-derived identity
 - [ ] Dashboard login, so suppression works from the UI
 - [ ] Authenticated reads, roles, and login rate limiting

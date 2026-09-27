@@ -308,6 +308,36 @@ Cost: a single ordered enum now spans two scales, and nothing enforces the bound
 
 In practice the ordering still puts the findings an operator should act on first at the top, because a capability granted is more urgent than a control weakened. That happens to be true rather than being something the model guarantees.
 
+### 19. Collected Data Carries Its Own Generation Time
+
+Decision: The IAM credential report is stored with AWS's `GeneratedTime` alongside the scan's own timestamp, rather than being treated as current as of the scan. A `TIMEOUT` collection status was added for the case where the report is requested but never becomes available within the collector's bounded wait.
+
+Rationale: Every other value this scanner collects is read directly and is current as of the moment of the call. The credential report is not. It is generated asynchronously — the collector requests it, polls until AWS reports `COMPLETE`, then fetches it — and AWS caches the result for up to four hours. A scan run five minutes after a user is created may read a report that predates them.
+
+That gap is invisible unless it is recorded. Storing only the scan time would imply a currency the data does not have, which is the same class of error as reporting zero findings when a section could not be read: the output looks authoritative and is not.
+
+`TIMEOUT` exists because the alternatives misdescribe what happened. `NOT_FOUND` would assert something about AWS's state — that no report exists — when the truth is that the collector stopped waiting. Raising would crash the scan over a condition that is recoverable on the next run. The check maps any non-`ok` collection status to `CANT_EVALUATE`, so `TIMEOUT` changes nothing downstream; it exists so an operator reading the snapshot can tell why the section is empty.
+
+Rejected alternative: refusing to use a report older than some threshold, and returning a non-`ok` status instead. That trades a recorded staleness for no data at all, and four hours is well inside the window in which these controls are meaningful — an access key that was compliant four hours ago is still compliant now.
+
+Cost: nothing currently reads `generated_at`. The staleness is recorded and available, but no check warns on it and the dashboard does not display it. A report several hours old is presented exactly like a fresh one.
+
+### 20. For CIS 4.1, Absence Is the Finding — So Collection Preserves Redundancy
+
+Decision: The CloudTrail collector nests by region and keeps shadow trails — the copies of a multi-region trail that appear in regions other than its home. Both choices add duplication that the other collectors avoid.
+
+Rationale: Every other check reports on something it found. 4.1 reports on something it did *not* find: the account has no multi-region trail that is actively logging. That inverts what partial visibility means.
+
+For a check that reports what it found, an unreadable region costs coverage — some resources go unexamined, and the `unevaluated` list records it. For a check where absence is the verdict, an unreadable region can flip the answer. A multi-region trail existing in a region the scanner could not read is indistinguishable from no multi-region trail existing at all, and the second produces a finding.
+
+Nesting by region preserves which regions were actually examined. Keeping shadow trails means a multi-region trail is visible from every region, so losing one region's visibility does not lose the trail.
+
+A trail existing is also not sufficient. CIS 4.1 requires that logging be enabled, which is separate state fetched per trail via `get_trail_status`. That call can fail independently of `describe_trails`, so it is nested with its own collection status rather than flattened onto the trail — a trail whose logging state could not be read is not the same as a trail that is not logging.
+
+Rejected alternative: a flat list of trails with a single section status. Simpler, and it avoids storing a multi-region trail four times. It was rejected because the flattened form cannot answer "which regions did I actually see?", which is the question 4.1's verdict depends on.
+
+Cost: a multi-region trail appears once per scanned region in the snapshot, and `get_trail_status` is called once per copy. At four regions that is four redundant calls per multi-region trail. The duplication is accepted because the alternative risks a false positive on a control where the false positive is "you have no audit trail."
+
 ### Open questions
 
 The remaining open questions are primarily around the findings platform and its production boundary:
