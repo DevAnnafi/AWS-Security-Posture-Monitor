@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from uuid import UUID, uuid4
+import scanner.checks
 
 from scanner.registry import CheckResult, CHECK_REGISTRY, CheckStatus
 

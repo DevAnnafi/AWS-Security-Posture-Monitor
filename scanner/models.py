@@ -11,6 +11,7 @@ class Severity(IntEnum):
     HIGH = 3
     MEDIUM = 2
     LOW = 1
+    INFO = 0
 
 class CollectionStatus(Enum):
     OK = "ok"
