@@ -1,6 +1,6 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-export type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+export type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "INFO";
 export type FindingStatus =
   | "new"
   | "acknowledged"
@@ -101,10 +101,6 @@ export function getSummary(): Promise<Summary> {
   return get<Summary>("/summary");
 }
 
-/**
- * Requires a GET /scans endpoint on the API, which does not exist yet.
- * See the note in the dashboard README.
- */
 export function getScans(): Promise<Scan[]> {
   return get<Scan[]>("/scans");
 }
@@ -113,7 +109,6 @@ export async function updateFindingState(
   findingId: string,
   body: {
     status: FindingStatus;
-    suppressed_by?: string;
     justification?: string;
     expires_at?: string;
   },

@@ -282,6 +282,32 @@ Cost:
 - Tokens cannot be revoked. A stolen token remains valid until it expires. Deleting the user stops the next request, because `get_current_user` looks the user up on every call.
 - Most API tests override `get_current_user` with a fixed user rather than exercising real tokens. One test runs the real dependency without credentials and asserts 401, and another asserts that a client-supplied `suppressed_by` is ignored.
 
+### 18. The Severity Enum Holds Two Different Scales
+
+Decision: `Severity` now has five levels. `CRITICAL`, `HIGH` and `MEDIUM` measure the capability an exposure grants an attacker, as decision 9 described. `LOW` and `INFO` measure something else: compliance drift that grants no capability at all. `LOW` is drift in a control that is currently in effect; `INFO` is drift that is not currently reachable.
+
+The controls that produce each:
+
+| Level | Measures | Example |
+|---|---|---|
+| `CRITICAL` | Shell or interactive control of a host | Port 22 open to `0.0.0.0/0` |
+| `HIGH` | Modify, delete or re-permission a resource | Bucket policy allowing `s3:*` to `*` |
+| `MEDIUM` | Read-only access to data | Bucket policy allowing `s3:GetObject` to `*` |
+| `LOW` | A weakened control, no capability granted | Console user without MFA; active access key older than 90 days |
+| `INFO` | Weakened control, not currently reachable | Inactive access key older than 90 days |
+
+Rationale: CIS 2.10 and 2.12 do not fit the capability model. A user without MFA has not granted anyone access; the account is one stolen password away from compromise rather than already compromised. An access key that has not rotated in 120 days grants exactly what it granted on day one. Neither describes a capability an attacker currently holds.
+
+Forcing them onto the capability scale would have meant either inflating them — treating a missing MFA device as equivalent to a publicly readable bucket — or leaving `LOW` undefined and assigning them arbitrarily. Decision 9 reserved `LOW` for exactly these controls without saying what it measured, and that gap had to be closed once the controls existed.
+
+`INFO` was added when CIS 2.12 produced two findings that genuinely differ in urgency. An active stale key is a live credential with an unbounded exposure window. An inactive stale key cannot authenticate until someone re-enables it. Reporting both at the same level would tell an operator nothing about which to look at first, and `LOW` was already the floor.
+
+Rejected alternative: a separate field — for example a `category` distinguishing exposure findings from compliance findings — with severity scoped within each. That is the more correct model. It was rejected because every consumer already reads a single `severity` field: the API response schema, the dashboard's severity ramp, the summary aggregation, and the finding evidence. Introducing a second dimension would change all of them for two controls.
+
+Cost: a single ordered enum now spans two scales, and nothing enforces the boundary. `Severity.HIGH > Severity.LOW` evaluates to `True`, but it is comparing a capability measurement against a compliance measurement, and the comparison is not meaningful. Sorting a mixed findings list by severity silently mixes the two.
+
+In practice the ordering still puts the findings an operator should act on first at the top, because a capability granted is more urgent than a control weakened. That happens to be true rather than being something the model guarantees.
+
 ### Open questions
 
 The remaining open questions are primarily around the findings platform and its production boundary:

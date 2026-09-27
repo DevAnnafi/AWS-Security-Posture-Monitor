@@ -313,17 +313,23 @@ Interactive docs at `/docs` when the service is running. The **Authorize** butto
 
 ## Severity model
 
-One factor, three levels, computed per finding from the capability the exposure grants:
+Five levels across two scales. The top three measure the capability an exposure grants an attacker; the bottom two measure compliance drift that grants no capability at all.
 
-| Level | Meaning | Severity | Example |
-|---|---|---|---|
-| 1 | Read-only access to data | Medium | Bucket policy allowing `s3:GetObject` to `*` |
-| 2 | Modify, delete, or re-permission a resource | High | Bucket policy allowing `s3:*`, or an ACL granting `FULL_CONTROL` |
-| 3 | Shell or interactive control of a host | Critical | Port 22 or 3389 open to `0.0.0.0/0` |
+| Level | Measures | Example |
+|---|---|---|
+| Critical | Shell or interactive control of a host | Port 22 or 3389 open to `0.0.0.0/0` |
+| High | Modify, delete, or re-permission a resource | Bucket policy allowing `s3:*`, or an ACL granting `FULL_CONTROL` |
+| Medium | Read-only access to data | Bucket policy allowing `s3:GetObject` to `*` |
+| Low | A weakened control, no capability granted | Console user without MFA; active access key older than 90 days |
+| Info | Weakened control, not currently reachable | Inactive access key older than 90 days |
 
-`LOW` is deliberately unused. Every finding the scanner currently emits is an unintended public exposure; none of them are safe to defer. `LOW` is reserved for controls like access-key age and missing MFA, which are non-compliant but not directly exploitable.
+For the top three, severity is derived per finding from what the configuration actually grants — a policy allowing `s3:GetObject` and one allowing `s3:*` on the same bucket score differently.
 
 The action allow-list is inverted on purpose: the scanner enumerates the actions it can prove are read-only and scores everything else as level 2. It cannot reliably decide whether an unfamiliar action is dangerous, but it can decide whether one is known-safe. The cost is over-scoring benign actions like `s3:GetBucketLocation` until they are explicitly listed.
+
+`Low` and `Info` exist because CIS 2.10 and 2.12 do not fit the capability model. A user without MFA has granted nobody access; the account is one stolen password away from compromise rather than already compromised. An access key that has not rotated in 120 days grants exactly what it granted on day one. Neither describes capability an attacker currently holds, so they are measured on a different scale that happens to share the same enum.
+
+The consequence is that comparing across the boundary is not meaningful. `HIGH > LOW` evaluates to `True` in code, but it compares a capability measurement against a compliance measurement. The ordering still surfaces urgent findings first, because a capability granted is more pressing than a control weakened — that is true rather than guaranteed by the model.
 
 The model is a documented heuristic, not a validated one. Full rationale, including why CVSS was not used and what validating it would require, is in [`docs/architecture.md`](docs/architecture.md) and [`docs/interview-notes.md`](docs/interview-notes.md).
 

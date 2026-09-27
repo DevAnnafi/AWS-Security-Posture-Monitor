@@ -8,7 +8,7 @@ import {
   type Severity,
 } from "@/lib/api";
 
-const severityOrder: Severity[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+const severityOrder: Severity[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"];
 
 function EmptyState({ message }: { message: string }) {
   return (

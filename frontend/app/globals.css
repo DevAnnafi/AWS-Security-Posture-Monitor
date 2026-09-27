@@ -9,11 +9,14 @@
   --ink-faint: #8f949b;
   --rule: #dfe1dc;
 
-  /* Severity: one hue, darkening with severity. */
+  /* Severity: CRITICAL through LOW darken on one hue. INFO drops to a
+     neutral grey because it sits on a different scale — the top three
+     measure capability granted, LOW and INFO measure compliance drift. */
   --sev-critical: #23255c;
   --sev-high: #4a4d9e;
   --sev-medium: #8b8ed2;
   --sev-low: #c3c5e6;
+  --sev-info: #9aa0a8;
 
   /* Reserved for uncertainty only: incomplete scans, unevaluated targets. */
   --unknown: #a8801f;
@@ -46,6 +49,7 @@
     --sev-high: #7477cc;
     --sev-medium: #4e5192;
     --sev-low: #34375e;
+    --sev-info: #4b5058;
 
     --unknown: #d4a943;
     --unknown-wash: #2a2415;
@@ -81,6 +85,9 @@ body {
 .sev-LOW {
   border-inline-start-color: var(--sev-low);
 }
+.sev-INFO {
+  border-inline-start-color: var(--sev-info);
+}
 
 .sev-dot {
   width: 0.5rem;
@@ -100,6 +107,9 @@ body {
 }
 .sev-dot-LOW {
   background: var(--sev-low);
+}
+.sev-dot-INFO {
+  background: var(--sev-info);
 }
 
 :focus-visible {
