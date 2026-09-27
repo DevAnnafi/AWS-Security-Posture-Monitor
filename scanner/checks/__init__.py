@@ -3,3 +3,4 @@ from .sg_open_ssh import SecurityGroupAdminPorts
 from .iam_wildcard_policy import IAMWildcardPolicy
 from .iam_mfa import IAMMFAEnabledCheck
 from .iam_key_rotation import IAMKeyRotationCheck
+from .cloudtrail_multi_region import CloudTrailMultiRegionLoggingCheck

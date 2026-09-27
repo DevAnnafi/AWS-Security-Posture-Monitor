@@ -8,6 +8,7 @@ import time
 import csv
 import io
 
+
 CREDENTIAL_REPORT_COLUMNS = (
     "user",
     "password_enabled",
@@ -19,6 +20,7 @@ CREDENTIAL_REPORT_COLUMNS = (
     "access_key_2_last_rotated",
 )
 
+
 class CollectionStatus(str, Enum):
     OK = "ok"
     ACCESS_DENIED = "access_denied"
@@ -26,6 +28,7 @@ class CollectionStatus(str, Enum):
     NOT_FOUND = "not_found"
     PARTIAL = "partial"
     TIMEOUT = "timeout"
+
 
 def collect_security_group(ec2_client, group_id):
     try:
@@ -44,7 +47,8 @@ def collect_security_group(ec2_client, group_id):
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
 
-        # A malformed ID means no such group exists and none ever will, so the outcome is identical to not-found.
+        # A malformed ID means no such group exists and none ever will,
+        # so the outcome is identical to not-found.
         if error_code in {
             "InvalidGroup.NotFound",
             "InvalidGroupId.Malformed",
@@ -369,6 +373,135 @@ def collect_security_groups(regions):
     }
 
 
+def collect_cloudtrail_trails(regions):
+    document = []
+
+    for region in regions:
+        cloudtrail_client = boto3.client(
+            "cloudtrail",
+            region_name=region,
+        )
+
+        try:
+            response = cloudtrail_client.describe_trails(
+                includeShadowTrails=True,
+            )
+
+            trails = []
+
+            for trail in response["trailList"]:
+                try:
+                    status_response = cloudtrail_client.get_trail_status(
+                        Name=trail["TrailARN"],
+                    )
+
+                    is_logging_document = {
+                        "IsLogging": status_response["IsLogging"],
+                    }
+
+                    for field in (
+                        "LatestDeliveryTime",
+                        "StartLoggingTime",
+                    ):
+                        if field in status_response:
+                            value = status_response[field]
+
+                            if hasattr(value, "isoformat"):
+                                is_logging_document[field] = value.isoformat()
+                            else:
+                                is_logging_document[field] = value
+
+                    for field in (
+                        "LatestDeliveryAttemptTime",
+                        "LatestNotificationAttemptTime",
+                        "LatestNotificationAttemptSucceeded",
+                        "LatestDeliveryAttemptSucceeded",
+                        "LatestDeliveryError",
+                        "LatestDigestDeliveryTime",
+                        "LatestDigestDeliveryError",
+                    ):
+                        if field in status_response:
+                            is_logging_document[field] = status_response[field]
+
+                    is_logging = {
+                        "status": CollectionStatus.OK.value,
+                        "document": is_logging_document,
+                    }
+
+                except ClientError as e:
+                    error_code = e.response["Error"]["Code"]
+
+                    if error_code == "TrailNotFoundException":
+                        is_logging = {
+                            "status": CollectionStatus.NOT_FOUND.value,
+                            "document": None,
+                        }
+
+                    elif error_code == "AccessDenied":
+                        is_logging = {
+                            "status": CollectionStatus.ACCESS_DENIED.value,
+                            "document": None,
+                        }
+
+                    else:
+                        raise
+
+                trails.append({
+                    "name": trail["Name"],
+                    "trail_arn": trail["TrailARN"],
+                    "home_region": trail["HomeRegion"],
+                    "s3_bucket_name": trail.get("S3BucketName"),
+                    "is_multi_region_trail": trail[
+                        "IsMultiRegionTrail"
+                    ],
+                    "include_global_service_events": trail[
+                        "IncludeGlobalServiceEvents"
+                    ],
+                    "log_file_validation_enabled": trail[
+                        "LogFileValidationEnabled"
+                    ],
+                    "is_logging": is_logging,
+                })
+
+            document.append({
+                "region": region,
+                "status": CollectionStatus.OK.value,
+                "document": trails,
+            })
+
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+
+            if error_code == "UnauthorizedOperation":
+                document.append({
+                    "region": region,
+                    "status": CollectionStatus.ACCESS_DENIED.value,
+                    "document": None,
+                })
+            else:
+                raise
+
+    if not document:
+        status = CollectionStatus.ACCESS_DENIED.value
+    elif all(
+        entry["status"] == CollectionStatus.OK.value
+        for entry in document
+    ):
+        status = CollectionStatus.OK.value
+    elif all(
+        entry["status"] == CollectionStatus.ACCESS_DENIED.value
+        for entry in document
+    ):
+        status = CollectionStatus.ACCESS_DENIED.value
+    else:
+        status = CollectionStatus.PARTIAL.value
+
+    return {
+        "status": status,
+        "document": document,
+    }
+
+
 def collect_snapshot():
     s3_client = boto3.client("s3")
     s3control_client = boto3.client("s3control")
@@ -436,10 +569,15 @@ def collect_snapshot():
             regions,
         ),
 
+        "cloudtrail_trails": collect_cloudtrail_trails(
+            regions,
+        ),
+
         "credential_report": collect_credential_report(
             iam_client,
         ),
     }
+
 
 def _normalize_credential_report_row(row: dict) -> dict:
     normalized = {}
@@ -460,6 +598,7 @@ def _normalize_credential_report_row(row: dict) -> dict:
 
     return normalized
 
+
 def collect_credential_report(iam_client, timeout: float = 30.0):
     deadline = time.monotonic() + timeout
 
@@ -468,6 +607,7 @@ def collect_credential_report(iam_client, timeout: float = 30.0):
 
         while response["State"] != "COMPLETE":
             remaining = deadline - time.monotonic()
+
             if remaining <= 0:
                 return {
                     "status": CollectionStatus.TIMEOUT.value,

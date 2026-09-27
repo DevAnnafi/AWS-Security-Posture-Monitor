@@ -427,6 +427,8 @@ CLEAN_ENVIRONMENT_FIXTURE = {
             }
         ],
     },
+
+    
 }
 
 S3_EVERYTHING_FIXTURE = {
@@ -936,6 +938,160 @@ CLEAN_ENVIRONMENT_FIXTURE = {
                 "status": "ok",
                 "document": [],
             }
+        ],
+    },
+
+    "cloudtrail_trails": {
+    "status": "ok",
+    "document": [
+        {
+            "region": "us-east-1",
+            "status": "ok",
+            "document": [
+                {
+                    "name": "multi-region-trail",
+                    "trail_arn": (
+                        "arn:aws:cloudtrail:us-east-1:"
+                        "157182991517:trail/multi-region-trail"
+                    ),
+                    "home_region": "us-east-1",
+                    "s3_bucket_name": "cloudtrail-bucket",
+                    "is_multi_region_trail": True,
+                    "include_global_service_events": True,
+                    "log_file_validation_enabled": True,
+                    "is_logging": {
+                        "status": "ok",
+                        "document": {
+                            "IsLogging": True,
+                        },
+                    },
+                }
+            ],
+        },
+        {
+            "region": "us-east-2",
+            "status": "ok",
+            "document": [],
+        },
+        {
+            "region": "us-west-1",
+            "status": "ok",
+            "document": [],
+        },
+        {
+            "region": "us-west-2",
+            "status": "ok",
+            "document": [],
+        },
+    ],
+  },
+}
+
+CLOUDTRAIL_FIXTURE = {
+    "account_id": "157182991517",
+    "regions_covered": [
+        "us-east-1",
+        "us-east-2",
+        "us-west-1",
+        "us-west-2",
+    ],
+    "cloudtrail_trails": {
+        "status": "ok",
+        "document": [
+            {
+                "region": "us-east-1",
+                "status": "ok",
+                "document": [
+                    {
+                        "name": "single-region-trail",
+                        "trail_arn": (
+                            "arn:aws:cloudtrail:us-east-1:"
+                            "157182991517:trail/single-region-trail"
+                        ),
+                        "home_region": "us-east-1",
+                        "s3_bucket_name": "cloudtrail-bucket",
+                        "is_multi_region_trail": False,
+                        "include_global_service_events": True,
+                        "log_file_validation_enabled": True,
+                        "is_logging": {
+                            "status": "ok",
+                            "document": {
+                                "IsLogging": True,
+                            },
+                        },
+                    }
+                ],
+            },
+            {
+                "region": "us-east-2",
+                "status": "ok",
+                "document": [],
+            },
+            {
+                "region": "us-west-1",
+                "status": "ok",
+                "document": [],
+            },
+            {
+                "region": "us-west-2",
+                "status": "ok",
+                "document": [],
+            },
+        ],
+    },
+}
+
+
+CLOUDTRAIL_COMPLIANT_FIXTURE = {
+    "account_id": "157182991517",
+    "regions_covered": [
+        "us-east-1",
+        "us-east-2",
+        "us-west-1",
+        "us-west-2",
+    ],
+    "cloudtrail_trails": {
+        "status": "ok",
+        "document": [
+            {
+                "region": "us-east-1",
+                "status": "ok",
+                "document": [
+                    {
+                        "name": "multi-region-trail",
+                        "trail_arn": (
+                            "arn:aws:cloudtrail:us-east-1:"
+                            "157182991517:trail/multi-region-trail"
+                        ),
+                        "home_region": "us-east-1",
+                        "s3_bucket_name": "cloudtrail-bucket",
+                        "is_multi_region_trail": True,
+                        "include_global_service_events": True,
+                        "log_file_validation_enabled": True,
+                        "is_logging": {
+                            "status": "ok",
+                            "document": {
+                                "IsLogging": True,
+                            },
+                        },
+                    }
+                ],
+            },
+            {
+                "region": "us-east-2",
+                "status": "ok",
+                "document": [],
+            },
+            {
+                "region": "us-west-1",
+                "status": "ok",
+                "document": [],
+            },
+            {
+                "region": "us-west-2",
+                "status": "ok",
+                "document": [],
+            },
         ],
     },
 }
