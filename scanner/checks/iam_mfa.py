@@ -5,7 +5,7 @@ from scanner.collector import CollectionStatus
 
 class IAMMFAEnabledCheck(BaseCheck):
     control_id = "2.10"
-    title = "IAM console users should have MFA enabled"
+    title = "IAM console user has no MFA"
     remediable = False
     requires = ["credential_report"]
 

@@ -385,3 +385,37 @@ The important point is:
 > **A configuration can violate a security rule while still being intentional and operationally necessary.**
 
 The remediation system therefore needs to consider operational context rather than blindly changing every finding.
+
+### How would you validate that the severity model is correct?
+
+There is no validation method behind it, and I want to be direct about that rather than describing a process I did not run.
+
+The model is engineering judgment. Severity has five levels across two scales. The top three — `CRITICAL`, `HIGH`, `MEDIUM` — measure the capability an exposure grants an attacker: shell access, the ability to modify or re-permission a resource, or read access to data. Those are derived per finding from the configuration itself, so a bucket policy allowing `s3:GetObject` and one allowing `s3:*` score differently even though both make the bucket public.
+
+The bottom two — `LOW` and `INFO` — measure something different: compliance drift that grants no capability at all. A console user without MFA has not given anyone access. An access key that has not rotated in 120 days grants exactly what it granted on the day it was created.
+
+Validating this properly would mean building a reference set: a collection of real misconfigurations classified independently by experienced practitioners who have not seen my assignments, then measuring how often the model agrees with them and where it systematically disagrees. Inter-rater reliability on the reference set itself would matter too, because if practitioners disagree with each other, there is no ground truth to measure against.
+
+I have not done that. What I have is a model whose reasoning is written down, so its assignments can be argued with rather than accepted. That is weaker than validation and stronger than an undocumented number.
+
+The one place I can point to evidence is the comparison with Prowler. Prowler assigns a static severity per check; mine derives it per finding. For the public bucket in my lab, Prowler flagged `s3_bucket_policy_public_write_access` on a policy granting only `s3:GetObject`. My model scored the same bucket `MEDIUM` rather than `HIGH` because it read the action list. That is one case where deriving from configuration produced a more accurate result than a fixed label — not validation, but a concrete instance of the model doing what it claims.
+
+### Your severity enum has five levels spanning two different scales. Isn't that a design smell?
+
+Yes, and it is recorded as one.
+
+The enum is ordered and comparable: `Severity.HIGH > Severity.LOW` evaluates to `True`. But those two values measure different things. `HIGH` says an attacker can modify a resource. `LOW` says a control has been weakened and nobody has gained anything yet. Comparing them is syntactically valid and semantically meaningless, and nothing in the code prevents it. Sorting a mixed findings list by severity silently mixes the two scales.
+
+The more correct model is a second dimension — a category field distinguishing exposure findings from compliance findings, with severity scoped within each. I rejected it because every consumer already reads a single `severity` field: the API response schema, the dashboard's severity ramp, the summary aggregation. Adding a dimension would change all of them, for two controls.
+
+What saves the ordering in practice is that it happens to sort correctly. A capability granted is more urgent than a control weakened, so the capability levels sitting above the compliance levels puts the right findings at the top. That is a coincidence of these particular controls rather than something the model guarantees, and I would expect it to break the first time a compliance finding is genuinely more urgent than an exposure.
+
+### Why did CIS 2.12 need two severity levels?
+
+Because the two findings it produces differ in whether the credential can be used at all.
+
+An active access key older than 90 days is a live credential with an unbounded exposure window — if it leaked at any point since rotation, it still works. An inactive key of the same age cannot authenticate until someone re-enables it. Reporting both at the same level would tell an operator nothing about which to look at first.
+
+`LOW` was already the floor when 2.12 was written, so `INFO` was added below it. That is the level for drift that is not currently reachable.
+
+The alternative was reporting only active keys and treating inactive ones as out of scope. I rejected that for the same reason the collector stores unattached IAM policies: a dormant credential is still a credential, and an inactive key can be re-enabled by anyone with the permission to do so. Recording it at a level that says "noted, not urgent" preserves the information without competing for attention with real exposures.

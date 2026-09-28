@@ -304,7 +304,7 @@ Forcing them onto the capability scale would have meant either inflating them �
 
 Rejected alternative: a separate field — for example a `category` distinguishing exposure findings from compliance findings — with severity scoped within each. That is the more correct model. It was rejected because every consumer already reads a single `severity` field: the API response schema, the dashboard's severity ramp, the summary aggregation, and the finding evidence. Introducing a second dimension would change all of them for two controls.
 
-Cost: a single ordered enum now spans two scales, and nothing enforces the boundary. `Severity.HIGH > Severity.LOW` evaluates to `True`, but it is comparing a capability measurement against a compliance measurement, and the comparison is not meaningful. Sorting a mixed findings list by severity silently mixes the two.
+Cost: a single ordered enum now spans two scales, and nothing enforces the boundary. `Severity.HIGH > Severity.LOW` evaluates to `True`, but it is comparing a capability measurement against a compliance measurement, and the comparison is not meaningful. Sorting a mixed findings list by severity silently mixes the two. CIS 4.1 is assigned HIGH as a deliberate exception. A missing multi-region trail grants no capability, but losing the ability to investigate is treated as severe enough to sit on the capability scale rather than below it. That's a third kind of finding the model doesn't have a place for, acknowledged rather than resolved.
 
 In practice the ordering still puts the findings an operator should act on first at the top, because a capability granted is more urgent than a control weakened. That happens to be true rather than being something the model guarantees.
 
